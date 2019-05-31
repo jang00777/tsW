@@ -1,0 +1,8 @@
+--- a/madgraph/interface/madgraph_interface.py
++++ b/madgraph/interface/madgraph_interface.py
+@@ -7916,1 +7916,1 @@
+-                    elif 0 < value < 0.1 and particle['color'] !=1:
++                    elif 0 < value < 0.001 and particle['color'] !=1:
+@@ -7999,1 +7999,1 @@
+-                if 0 < BR.value * width <0.1 and particle['color'] !=1:
++                if 0 < BR.value * width <0.001 and particle['color'] !=1:
