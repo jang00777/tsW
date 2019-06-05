@@ -11,7 +11,7 @@ using Pythia8::Pythia;
 
 int main()
 {
-  Pythia pythia("../pythia-xml");
+  Pythia pythia("./pythia-xml");
 
   pythia.readString("StandardModel:Vtb = 0.0");
   pythia.readString("StandardModel:Vts = 1.0");

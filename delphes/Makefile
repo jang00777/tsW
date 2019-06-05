@@ -45,9 +45,11 @@ pythia_tbW : pythia_tbW.cc
 
 run_tsW : pythia_tsW
 	LD_LIBRARY_PATH=/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib:$LD_LIBRARY_PATH ./pythia_tsW
+	/code/MG5_aMC_v2_6_0/Delphes/DelphesHepMC delphes_card_CMS.tcl tsW.root tsW.hepmc
 
 run_tbW : pythia_tbW
 	LD_LIBRARY_PATH=/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib:$LD_LIBRARY_PATH ./pythia_tbW
+	/code/MG5_aMC_v2_6_0/Delphes/DelphesHepMC delphes_card_CMS.tcl tbW.root tbW.hepmc
 
 pythia_tsW_dilep : pythia_tsW_dilep.cc
 	g++ pythia_tsW_dilep.cc -o pythia_tsW_dilep -I/code/MG5_aMC_v2_6_0/HEPTools/pythia8//include -L/code/MG5_aMC_v2_6_0/HEPTools/pythia8//lib -lpythia8 -L/usr/lib -lboost_iostreams -L/code/MG5_aMC_v2_6_0/HEPTools/zlib/lib -lz -I/code/MG5_aMC_v2_6_0/HEPTools/hepmc/include -L/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib -lHepMC -ldl
@@ -62,3 +64,12 @@ run_tsW_dilep : pythia_tsW_dilep
 run_tbW_dilep : pythia_tbW_dilep
 	LD_LIBRARY_PATH=/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib:$LD_LIBRARY_PATH ./pythia_tbW_dilep
 	/code/MG5_aMC_v2_6_0/Delphes/DelphesHepMC delphes_card_CMS.tcl tbW_dilep.root tbW_dilep.hepmc
+
+analyse :
+	singularity exec ~/Images/Madgraph.img python analyse.py
+
+WcsAnalysis : WcsAnalysis.cc
+	g++ -g -std=c++1y -o WcsAnalysis WcsAnalysis.cc `root-config --cflags --libs` -I/usr/include/root -L/code/MG5_aMC_v2_6_0/Delphes/ -I../../install/include  -I/code/MG5_aMC_v2_6_0/Delphes/ -I/code/MG5_aMC_v2_6_0/Delphes/external -lEG -lDelphes
+
+run_WcsAnalysis : WcsAnalysis
+	LD_LIBRARY_PATH=/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib:/code/MG5_aMC_v2_6_0/Delphes:$LD_LIBRARY_PATH ./WcsAnalysis

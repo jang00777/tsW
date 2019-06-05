@@ -11,7 +11,7 @@ using Pythia8::Pythia;
 
 int main()
 {
-  Pythia pythia("../pythia-xml");
+  Pythia pythia("./pythia-xml");
 
   pythia.readString("StandardModel:Vtb = 1.0");
   pythia.readString("StandardModel:Vts = 0.0");
@@ -20,7 +20,7 @@ int main()
   pythia.readString("Top:gg2ttbar = on");
   pythia.readString("Top:qqbar2ttbar = on");
 
-  pythia.readString("Main:numberOfEvents = 10000");
+  pythia.readString("Main:numberOfEvents = 250000");
 
   pythia.readString("Beams:idA = 2212");
   pythia.readString("Beams:idB = 2212");
@@ -32,7 +32,7 @@ int main()
   HepMC::IO_GenEvent ascii_io("tbW.hepmc", std::ios::out);
 
   pythia.init();
-  for (int iEvent = 0; iEvent < 10000; ++iEvent) {
+  for (int iEvent = 0; iEvent < 250000; ++iEvent) {
     pythia.next();
     HepMC::GenEvent* hepmcevt = new HepMC::GenEvent();
     ToHepMC.fill_next_event(pythia, hepmcevt);
