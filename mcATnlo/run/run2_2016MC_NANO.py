@@ -30,7 +30,9 @@ process.maxEvents = cms.untracked.PSet(
 # Input source
 process.source = cms.Source("PoolSource",
 #    fileNames = cms.untracked.vstring('file:10D3267C-6FBD-E611-AED8-70106F48BC1E.root'),
-    fileNames = cms.untracked.vstring("root://cms-xrdr.sdfarm.kr:1094///xrd/store/user/iawatson/"+sys.argv[-1]),
+#    fileNames = cms.untracked.vstring('/store/user/jlee/tsW_13TeV_PUMoriond17_80X_mcRun2_asymptotic_2016_TrancheIV_v4_miniAOD/miniAOD_226.root'),
+#    fileNames = cms.untracked.vstring("root://cms-xrdr.private.lo:2094///xrd/store/user/wjjang/Vts/"+sys.argv[-1]),
+    fileNames = cms.untracked.vstring("root://cms-xrdr.private.lo:2094///xrd/store/user/wjjang/ttbar/"+sys.argv[-1]),
     secondaryFileNames = cms.untracked.vstring()
 )
 sys.argv = sys.argv[:-1]
@@ -84,7 +86,7 @@ from PhysicsTools.NanoAOD.nano_cff import nanoAOD_customizeMC
 process = nanoAOD_customizeMC(process)
 
 # Automatic addition of the customisation function from nano.nanoAOD.nano_cff
-from nano.nanoAOD.nano_cff import customise
+from nano.nanoAOD.nano_cff import customise 
 
 #call to customisation function customise imported from nano.nanoAOD.nano_cff
 from FWCore.ParameterSet.VarParsing import VarParsing
@@ -92,8 +94,8 @@ options = VarParsing ('python')
 options.register('doHadron', True, VarParsing.multiplicity.singleton, VarParsing.varType.bool, "doHadron: 1  default")
 options.register('fastSim', False, VarParsing.multiplicity.singleton, VarParsing.varType.bool, "fastSim: 0  default")
 options.parseArguments()
-
 process = customise(process, options.doHadron, options.fastSim)
+
 # End of customisation functions
 
 # Customisation from command line

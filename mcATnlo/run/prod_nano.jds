@@ -1,0 +1,15 @@
+executable = prod_nano.sh
+universe = vanilla
+
+should_transfer_files = NO
+
+requirements = ( HasSingularity == true )
+accounting_group=group_cms
++SingularityImage = "/cvmfs/singularity.opensciencegrid.org/opensciencegrid/osgvo-el6:latest"
++SingularityBind = "/cvmfs, /cms, /share"
+
+requirements = (Machine =!= "cms-gpu01.sdfarm.kr")
+
+getenv = True
+
+queue
