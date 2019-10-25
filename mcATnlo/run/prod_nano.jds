@@ -1,6 +1,8 @@
 executable = prod_nano.sh
 universe = vanilla
 
+request_disk = 20G
+
 should_transfer_files = NO
 
 requirements = ( HasSingularity == true )

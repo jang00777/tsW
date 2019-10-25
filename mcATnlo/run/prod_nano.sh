@@ -57,7 +57,7 @@ rm nano*root
 
 echo "-- Run genHadronAOD production"
 cmsRun ./runGenHadronProducer.py ${PROCESS}/GEN/${SUFFIX}.root > ${SUFFIX}.ghad.log #2>&1
-${CP} genHadronAOD.root ${BASE}/${PROCESS}/HADTRUTHAOD/${SUFFIX}.root
+${CP} genHadronAOD.root ${BASE}/${PROCESS}/GENHADAOD/${SUFFIX}.root
 ${CP} ${SUFFIX}.ghad.log ${BASE}/${PROCESS}/LOG/${SUFFIX}.ghad.log
 rm genHadronAOD.root
 

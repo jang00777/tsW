@@ -45,5 +45,5 @@ fi
 
 #for i in {51..1050}; do
 for i in {51..250}; do
-    condor_submit rerun2.jds -batch-name "NANO_${PROCESS}_${i}" -append "output = log/rerunCMS-out_${PROCESS}_${i}.txt" -append "error = log/rerunCMS-error_${PROCESS}_${i}.txt" -append "log = log/rerunCMS-log_${PROCESS}_${i}.txt" -append "arguments = $BASE $PROCESS $i $XRDCP"
+    condor_submit prod_nano.jds -batch-name "NANO_${PROCESS}_${i}" -append "output = log/rerunCMS-out_${PROCESS}_${i}.txt" -append "error = log/rerunCMS-error_${PROCESS}_${i}.txt" -append "log = log/rerunCMS-log_${PROCESS}_${i}.txt" -append "arguments = $BASE $PROCESS $i $XRDCP"
 done
