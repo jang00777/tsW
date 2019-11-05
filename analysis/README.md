@@ -11,5 +11,5 @@ pip install .
 cd ..
 rm -rf PyRDF/
 cd ..
-time python ./PowVsMcatnlo.py
+time python ./TtSkim.py
 ```

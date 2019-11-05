@@ -8,13 +8,8 @@ from glob import glob
 import TopSelections
 r.ROOT.EnableImplicitMT()
 
-def toVector(typ, l):
-    v = r.vector(typ)()
-    for i in l: v.push_back(i)
-    return v
-
 fns = glob("/hdfs/store/group/nanoAOD/run2_2016v5/TT_TuneCUETP8M2T4_13TeV-powheg-pythia8/RunIISummer16MiniAODv2-PUMoriond17_80X_mcRun2_asymptotic_2016_TrancheIV_v6-v1/180607_115926/**/*root")
-fs = toVector('string', fns[:2])
+fs = Tools.toVector('string', fns[:2])
 # print(len(fns))
 powheg = r.RDataFrame("Events", fs)
 
@@ -22,6 +17,7 @@ powheg = r.RDataFrame("Events", fs)
 dimu = powheg.pvFilter()\
              .Filter(TopSelections.muonTriggers, "Trigger")\
              .Define("PUWeight", "PileupGetWeight(Pileup_nTrueInt)")\
+             .Define("GenWeight", "copysign(1.,genWeight)")\
              .electronSelection()\
              .muonSelection()\
              .Filter("nElectrons==0", "NoElectron")\
@@ -39,11 +35,13 @@ cutflow =  dimu.Filter("DiLep.M()>20.","DiLep M")\
 hdim_precut = dimu.Histo1D(r.RDF.TH1DModel("", "", 100, 0, 300), "DiLep_Mass")
 hmupt_precut = dimu.Histo1D(r.RDF.TH1DModel("", "", 100, 0, 300), "MuonPt")
 
-cutflow.Snapshot('Events', 'test.root', toVector('string', ['Lep0', 'Lep1', 'MET_pt', 'MET_phi',
-                                                            'JetPt', 'JetEta', 'JetPhi', 'JetM', 'BTag',
-                                                            'HadJet', 'HadPt', 'HadEta', 'HadPhi', 'HadMass', 'HadX', 'HadJetDR',
-                                                            'PUWeight'
-]))
+cutflow.Snapshot('Events', 'test.root',
+                 Tools.toVector('string', [
+                     'Lep0', 'Lep1', 'MET_pt', 'MET_phi',
+                     'JetPt', 'JetEta', 'JetPhi', 'JetM', 'BTag',
+                     'HadJet', 'HadPt', 'HadEta', 'HadPhi', 'HadMass', 'HadX', 'HadJetDR',
+                     'PUWeight', 'genWeight'
+                 ]))
 
 # print([c for c in cutflow.GetColumnNames() if not c.startswith('HLT')])
 
