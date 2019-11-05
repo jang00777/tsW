@@ -2,6 +2,7 @@
 # PyRDF.use('spark', {'npartitions':64})
 #PyRDF.use('local')
 
+import Tools
 import ROOT as r
 from glob import glob
 import TopSelections
@@ -20,6 +21,7 @@ powheg = r.RDataFrame("Events", fs)
 # Based on topEventSelectionDL.cc. Currently mumu only
 dimu = powheg.pvFilter()\
              .Filter(TopSelections.muonTriggers, "Trigger")\
+             .Define("PUWeight", "PileupGetWeight(Pileup_nTrueInt)")\
              .electronSelection()\
              .muonSelection()\
              .Filter("nElectrons==0", "NoElectron")\
@@ -40,6 +42,7 @@ hmupt_precut = dimu.Histo1D(r.RDF.TH1DModel("", "", 100, 0, 300), "MuonPt")
 cutflow.Snapshot('Events', 'test.root', toVector('string', ['Lep0', 'Lep1', 'MET_pt', 'MET_phi',
                                                             'JetPt', 'JetEta', 'JetPhi', 'JetM', 'BTag',
                                                             'HadJet', 'HadPt', 'HadEta', 'HadPhi', 'HadMass', 'HadX', 'HadJetDR',
+                                                            'PUWeight'
 ]))
 
 # print([c for c in cutflow.GetColumnNames() if not c.startswith('HLT')])
