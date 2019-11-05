@@ -140,6 +140,7 @@ def hadronSelection(self):
 r.RDataFrame.pvFilter = pvFilter
 PyRDF.Proxy.TransformationProxy.pvFilter = pvFilter
 r.RDF.RInterface('ROOT::Detail::RDF::RJittedFilter,void').pvFilter = pvFilter
+r.RDF.RInterface('ROOT::Detail::RDF::RLoopManager,void').pvFilter = pvFilter
 r.RDataFrame.electronSelection = electronSelection
 PyRDF.Proxy.TransformationProxy.electronSelection = electronSelection
 r.RDF.RInterface('ROOT::Detail::RDF::RJittedFilter,void').electronSelection = electronSelection
