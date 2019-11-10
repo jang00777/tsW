@@ -1,36 +1,78 @@
 import ROOT as r
 import Tools
+import subprocess
+import os
+from glob import glob
 
-initialize = Tools.ini
 
 def ini():
+    if not NanoDataFrame.first:
+        return
+    import ROOT
     from glob import glob
-    # for f in glob('external/*cc'):
-    #     r.gInterpreter.LoadFile(f)
-    r.gInterpreter.LoadFile('external/lumiTool.cc')
-#    r.gInterpreter.LoadFile('external/computePtEtaTable.cc')
-    r.gInterpreter.LoadFile('external/pileUpTool.cc')
-    for code in initialize:
-        r.gInterpreter.Declare(code)
+    ROOT.gSystem.Load('libTtSkim.so')
+    for f in glob('*hh'):
+        ROOT.gInterpreter.LoadFile(f)
+    NanoDataFrame.first = False
+
+
+def recompile():
+    "Recompile libTtSkim.so if C++ files newer than the .so exist."
+    should_compile = False
+    if not os.path.exists('libTtSkim.so'):
+        should_compile = True
+    else:
+        skim_time = os.path.getmtime('libTtSkim.so')
+        for f in glob('*.cc')+glob('*.hh')+glob('external/*.cc')+glob('external/*.cc'):
+            if os.path.getmtime(f) > skim_time:
+                should_compile = True
+                break
+    if should_compile:
+        print "Recompiling libTtSkim.so"
+        os.system('rm -f Dict.cc')
+        subprocess.check_call('rootcling Dict.cc *hh', shell=True)
+        subprocess.check_call('g++ -shared -fPIC -o libTtSkim.so external/*cc *cc `root-config --libs --cflags`', shell=True)
+
 
 class NanoDataFrame(object):
 
     """Switch between PyRDF and ROOTs RDataFrame, plus a bunch of helpers
 for e.g. keeping track of weights.
 
+C++ code which is needed to run your analysis should be in a .cc file
+at the same level or in the external/ directory, with corresponding
+.hh header files containing cling pragmas of the following form:
+
+#if defined(__ROOTCLING__)
+#pragma link C++ function <function name>;
+#endif
+
+for each function that will be required for use in RDataFrame's
+Defines/Filters/etc. The cc files get compiled into a shared library
+at the beginning of execution.
+
     """
+
+    first = True
     
-    def __init__(self, tree=None, files=None, spark=False, npartitions=172, initialize=None, weight=None):
+    def __init__(self, tree=None, files=None, spark=False, npartitions=172, weight=None):
         if tree is None:
+            self.df = None
+            self.filters = None
+            self.weight = None
             return
+        recompile()
+        ini()
         if spark:
+            import NanoDataFrame
             import PyRDF
+            PyRDF.use('spark', {'npartitions' : npartitions})
+            PyRDF.initialize(ini)
             # According to https://jaceklaskowski.gitbooks.io/mastering-apache-spark/spark-rdd-partitions.html
             # we want 2-3x the number of partitions as executors, and according to
             # PyRDF.current_backend.sparkContext.defaultParallelism
             # we have 88
-            PyRDF.use('spark', {'npartitions':npartitions})
-            PyRDF.initialize(ini)
+#            PyRDF.use('spark', {'npartitions':npartitions})
             self.df = PyRDF.RDataFrame("Events", files)
         else:
             self.df = r.RDataFrame("Events", files)
@@ -66,8 +108,12 @@ for e.g. keeping track of weights.
     def Histo1D(self, *args):
         return self.copy(self.df.Histo1D(*args))
 
+    def GetColumnNames(self):
+        return self.df.GetColumnNames()
+
     def Snapshot(self, *args):
-        return self.copy(self.df.Snapshot(*args))
+        "In PyRDF, returns a TChain of all the files"
+        return self.df.Snapshot(*args)
 
     def SetWeight(self, weight):
         """Set the weight for the event count of current and subsequent
@@ -101,6 +147,6 @@ filters (doesn't affect previous filters)
         cmaxi = max([len(c) for _, c, _ in filters]+[5])
         wmaxi = max([len(w) for _, _, w in filters]+[6])
         print "| {{:{}s}} | {{:{}s}} | {{:{}s}} |".format(nmaxi, cmaxi, wmaxi).format("Name", "Count", "Weight")
-        print "| {{:{}s}} | {{:{}s}} | {{:{}s}} |".format(nmaxi, cmaxi, wmaxi).format("-"*nmaxi, "-"*cmaxi, "-"*wmaxi)
+        print "|-{{:{}s}}-|-{{:{}s}}-|-{{:{}s}}-|".format(nmaxi, cmaxi, wmaxi).format("-"*nmaxi, "-"*cmaxi, "-"*wmaxi)
         for name, count, weight in filters:
             print "| {{:{}s}} | {{:{}s}} | {{:{}s}} |".format(nmaxi, cmaxi, wmaxi).format(name, count, weight)
