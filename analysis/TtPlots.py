@@ -4,6 +4,7 @@ import ROOT as r
 r.ROOT.EnableImplicitMT()
 r.gStyle.SetOptStat(0)
 
+base = './'
 lumi = 35.9
 mc = [
     ("DYJets", "DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8", 6225420., r.kMagenta),
@@ -18,8 +19,8 @@ mc = [
 cvs = r.TCanvas()
 
 mcCounts = [r.TFile('skim2016/{0}/{0}.root'.format(d)) for _, d, _, _ in mc]
-mcDF = [r.RDataFrame('Events', Tools.toVector('string', ['/hdfs/store/user/iawatson/TT/skim2016/{0}/{0}_*.root'.format(d)])) for _, d, _, _ in mc]
-dt = r.RDataFrame('Events', Tools.toVector('string', glob('/hdfs/store/user/iawatson/TT/skim2016/DoubleMuon**/*_*.root')))
+mcDF = [r.RDataFrame('Events', Tools.toVector('string', [base+'skim2016/{0}/{0}_*.root'.format(d)])) for _, d, _, _ in mc]
+dt = r.RDataFrame('Events', Tools.toVector('string', glob(base+'skim2016/DoubleMuon**/*_*.root')))
 
 mcDF = [h.Define('Weight', '{}*GenWeight*PUWeight*LepWeight'.format(float(xsec)*lumi/float(c.Get("weights").GetBinContent(1)))) for c,h,(_,_,xsec,_) in zip(mcCounts, mcDF, mc)]
 dt, mcDF = dt.Define('DiLep_Pt', 'DiLep.Pt()'), [h.Define('DiLep_Pt', 'DiLep.Pt()') for h in mcDF]
@@ -35,8 +36,11 @@ histos = [
      [df.Histo1D(r.RDF.TH1DModel('',';p_{T}(#ell) [GeV];Events / 5 GeV',100,0,500), 'MuonPt', 'Weight') for df in mcDF],
      dt.Histo1D(r.RDF.TH1DModel('',';p_{T}(#ell) [GeV];Events / 5 GeV',100,0,500), 'MuonPt')),
 ]   
+save = []
 
 for name, hmc, hdt in histos:
+    cvs.cd()
+
     leg = r.TLegend(0.65,0.45,0.83,0.87, "", "brNDC")
     leg.SetBorderSize(0)
     leg.SetTextSize(0.046)
@@ -59,7 +63,7 @@ for name, hmc, hdt in histos:
     [h.SetLineColor(col) for (_,_,_,col), h in zip(mc, hmc)]
     [h.SetMarkerColor(col) for (_,_,_,col), h in zip(mc, hmc)]
     [h.SetMarkerStyle(21) for (_,_,_,col), h in zip(mc, hmc)]
-    [h.SetMarkerSize(3) for (_,_,_,col), h in zip(mc, hmc)]
+    [h.SetMarkerSize(1) for (_,_,_,col), h in zip(mc, hmc)]
     [leg.AddEntry(h.GetPtr(), n, "p") for (n,_,_,_), h in zip(mc, hmc)]
     [stk.Add(h.GetPtr()) for h in hmc]
 
@@ -74,8 +78,8 @@ for name, hmc, hdt in histos:
     rat.Draw()
 
     scale = 1.1;
-    stk.SetMaximum(scale*max(stk.GetMaximum(), d.GetMaximum()));
-    d.SetMaximum(scale*max(stk.GetMaximum(), d.GetMaximum()));
+    stk.SetMaximum(scale*max(stk.GetMaximum(), hdt.GetMaximum()));
+    hdt.SetMaximum(scale*max(stk.GetMaximum(), hdt.GetMaximum()));
     cvs.Update()
 
     up = rat.GetUpperPad()
@@ -105,4 +109,5 @@ for name, hmc, hdt in histos:
 
     up.SetLogy()
     cvs.Update()
-    cvs.Print("{}.png".format(name))
+    cvs.Print("plots/{}.png".format(name))
+    save.append([hdt, hmc, stk, leg, mchist])
