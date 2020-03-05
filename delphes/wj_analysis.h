@@ -1,15 +1,16 @@
 //define
-#define Branch_(type, name, suffix) outtr->Branch(#name, &name, #name "/" #suffix);
+#define Branch_(type, name, suffix) outtr->Branch(#name, &(b_##name), #name "/" #suffix);
 #define BranchI(name) Branch_(Int_t, name, I)
 #define BranchF(name) Branch_(Float_t, name, F)
 #define BranchO(name) Branch_(Bool_t, name, O)
-#define BranchA_(type, name, size, suffix) outtr->Branch(#name, &name, #name"["#size"]/"#suffix);
+#define BranchA_(type, name, size, suffix) outtr->Branch(#name, &(b_##name), #name"["#size"]/"#suffix);
 #define BranchAI(name, size) BranchA_(Int_t, name, size, I);
 #define BranchAF(name, size) BranchA_(Float_t, name, size, F);
 #define BranchAO(name, size) BranchA_(Bool_t, name, size, O);
-#define BranchVF(name) outtr->Branch(#name, "vector<float>", &name);
-#define BranchVI(name) outtr->Branch(#name, "vector<int>", &name);
-#define BranchVO(name) outtr->Branch(#name, "vector<bool>", &name);
+#define BranchVF(name) outtr->Branch(#name, "vector<float>", &(b_##name));
+#define BranchVI(name) outtr->Branch(#name, "vector<int>", &(b_##name));
+#define BranchVO(name) outtr->Branch(#name, "vector<bool>", &(b_##name));
+#define BranchTLV(name) outtr->Branch(#name, "TLorentzVector", &(b_##name));
 
 #define BranchP_(type, br, name, suffix) TBranch *br =  outtr->Branch(#name, &name, #name "/" #suffix);
 #define BranchPI(br,name) BranchP_(Int_t, br,name, I);
@@ -23,79 +24,332 @@ struct Lepton {
   int pdgid;
 };
 
+struct RecoJet {
+  int idx;
+  Jet*  j;
+  int   pdgid;
+  int   gen_pdgid;
+  float dr;
+  float drl1;
+  float drl2;
+  float x;
+  bool  isOverlap;
+  int   isFrom;
+  bool  hasHighestPt;
+  bool  hasClosestLep;
+};
+
+struct RecoHad {
+  TLorentzVector tlv;
+  TLorentzVector dau1_tlv;
+  TLorentzVector dau2_tlv;
+  int  idx;
+  int  dau1_idx;
+  int  dau2_idx;
+  int  pdgid;
+  int  dau1_pdgid;
+  int  dau2_pdgid;
+  int  isFrom;
+  bool isSelected;
+  bool isJetMatched;
+};
+
+struct TruthHad {
+  TLorentzVector tlv;
+  TLorentzVector dau1_tlv;
+  TLorentzVector dau2_tlv;
+  float x;
+  int   idx;
+  int   pdgid;
+  int   dau1_idx;
+  int   dau1_pdgid;
+  int   dau2_idx;
+  int   dau2_pdgid;
+  int   isFrom;
+  bool  isFromTop;
+  bool  isFromW;
+};
+
+//make out file
+//auto out   = TFile::Open(outf.c_str(), "RECREATE");
+//auto outtr = new TTree("event", "event");
+//auto jettr = new TTree("MVA_jet", "MVA_jet");
+//auto hadtr = new TTree("MVA_had", "MVA_had");
+
+// const values
+
+float ksMass_  = 0.49761; float lambda0Mass_  = 1.11568; float pionMass_  = 0.13967; float protonMass_  = 0.938272;
+int   ksPdgId_ = 310;     int   lambda0PdgId_ = 3122;    int   pionPdgId_ = 211;     int   protonPdgId_ = 2212;
+
+
 //read data
 TClonesArray *gen_jets = 0, *particles = 0;
 TClonesArray *electrons = 0, *muons = 0, *jets = 0, *missingET = 0;
 TClonesArray *tracks = 0;
 
+
+//declare global variables
+std::vector<const GenParticle*> m_genQuark;
+std::map<int, struct TruthHad> m_genHadron;
+std::vector<struct Lepton> m_genLepton;
+std::map<int, Jet*> m_selectedJet;
+std::vector<RecoJet> m_matchedJet;
+std::vector<RecoHad> m_recoHad;
+bool m_hadPreCut = false;
+std::string m_decayChannel;
+
 //declare variable for branch
-//  recoParticle()
+//  EventSelection()
+TLorentzVector b_recoLep1, b_recoLep2;
+int b_recoLep1_pdgId, b_recoLep2_pdgId;
 
-//  genParticle()
-float dilepton_mass;
+//  MatchingGenJet()
+float b_dilepton_mass;
+int   b_dilepton_ch, b_channel, b_step;
 
-float x_KS, x_KS_S, x_KS_B, rho_KS, rho_KS_S,rho_KS_B, d_KS, d_KS_S, d_KS_B;
-float x_lamb, x_lamb_S, x_lamb_B, rho_lamb, rho_lamb_S, rho_lamb_B, d_lamb, d_lamb_S, d_lamb_B;
-float significance_S, significance_B;
+float b_Ks_x,   b_Ks_x_S,   b_Ks_x_B,   b_Ks_rho,   b_Ks_rho_S,   b_Ks_rho_B,   b_Ks_d,   b_Ks_d_S,   b_Ks_d_B;
+float b_lamb_x, b_lamb_x_S, b_lamb_x_B, b_lamb_rho, b_lamb_rho_S, b_lamb_rho_B, b_lamb_d, b_lamb_d_S, b_lamb_d_B;
+float b_significance_S, b_significance_B;
 
-int dilepton_ch, channel;
+bool b_gen_step0, b_gen_step1;
+std::vector<float> b_jet_pt, b_jet_eta, b_jet_phi, b_jet_energy;
+std::vector<int>   b_jet_pdgId;
 
-bool gen_step0, gen_step1;
-std::vector<float> jet_pt, jet_eta, jet_phi, jet_energy;
-std::vector<int> jet_pid;
+std::vector<float> b_KsInJet_pt,   b_KsInJet_eta,   b_KsInJet_phi,   b_KsInJet_energy,   b_KsInJet_R,   b_KsInJet_outR,   b_KsInJet_rho, b_KsInJet_d;
+std::vector<float> b_lambInJet_pt, b_lambInJet_eta, b_lambInJet_phi, b_lambInJet_energy, b_lambInJet_R, b_lambInJet_outR, b_lambInJet_rho, b_lambInJet_d;
+std::vector<float> b_lepInJet_pt,  b_lepInJet_eta,  b_lepInJet_phi,  b_lepInJet_energy,  b_lepInJet_R,  b_lepInJet_outR;
 
-std::vector<float> kshortsInjet_pt, kshortsInjet_eta, kshortsInjet_phi, kshortsInjet_energy, kshortsInjet_R, kshortsInjet_outR, kshortsInjet_rho, kshortsInjet_d;
-std::vector<float> lambdasInjet_pt, lambdasInjet_eta, lambdasInjet_phi, lambdasInjet_energy, lambdasInjet_R, lambdasInjet_outR, lambdasInjet_rho, lambdasInjet_d;
-std::vector<float> leptonsInjet_pt, leptonsInjet_eta, leptonsInjet_phi, leptonsInjet_energy, leptonsInjet_R, leptonsInjet_outR;
+std::vector<int> b_nKsInJet, b_nLambInJet, b_nLepInJet;
 
-std::vector<int> nkshortsInjet, nlambdasInjet, nleptonsInjet;
+std::vector<float> b_jet1_diHadron_mass, b_jet2_diHadron_mass;
 
-std::vector<float> jet1_diHadron_mass, jet2_diHadron_mass;
+// FillJetTree() and FillHadTree()
+bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep;
+float b_pt,               b_eta,              b_phi,           b_mass,        b_ptD,         b_radiusInEta, b_radiusInPhi;
+int   b_pdgId,            b_cMult,            b_nMult,         b_flavorAlgo,  b_flavorPhys,  b_bTag,        b_bTagAlgo,    b_bTagPhys, b_tauTag, b_isFrom;
+float b_tauWeight;
+
+float b_had_pt,           b_had_eta,          b_had_phi,       b_had_mass,    b_had_x,       b_had_dr;
+int   b_had_pdgId,        b_had_isFrom,       b_had_nMatched;
+bool  b_had_isSelected,   b_had_isJetMatched;
+int   b_dau1_pdgId;
+float b_dau1_pt,          b_dau1_eta,         b_dau1_phi,      b_dau1_mass;
+int   b_dau2_pdgId;
+float b_dau2_pt,          b_dau2_eta,         b_dau2_phi,      b_dau2_mass;
+
+float b_genHad_pt,        b_genHad_eta,       b_genHad_phi,    b_genHad_mass, b_genHad_x;
+int   b_genHad_pdgId,     b_genHad_isFrom;    
+bool  b_genHad_isFromTop, b_genHad_isFromW;   
+int   b_genDau1_pdgId;   
+float b_genDau1_pt,       b_genDau1_eta,      b_genDau1_phi,   b_genDau1_mass;
+int   b_genDau2_pdgId;   
+float b_genDau2_pt,       b_genDau2_eta,      b_genDau2_phi,   b_genDau2_mass;
+
+
+void ResetHadValues() {
+  b_had_pt           = -99;   b_had_eta          = -99;   b_had_phi      = -99; b_had_mass    = -99; b_had_x       = -99; b_had_dr      = -99;
+  b_had_pdgId        = -99;   b_had_isFrom       = -99;   b_had_nMatched = -99;
+  b_had_isSelected   = false; b_had_isJetMatched = false;
+  b_dau1_pdgId       = -99;
+  b_dau1_pt          = -99;   b_dau1_eta         = -99;   b_dau1_phi     = -99; b_dau1_mass   = -99;
+  b_dau2_pdgId       = -99;
+  b_dau2_pt          = -99;   b_dau2_eta         = -99;   b_dau2_phi     = -99; b_dau2_mass   = -99;
+
+  b_genHad_pt        = -99;   b_genHad_eta       = -99;   b_genHad_phi   = -99; b_genHad_mass = -99; b_genHad_x = -99;
+  b_genHad_pdgId     = -99;   b_genHad_isFrom    = -99;
+  b_genHad_isFromTop = false; b_genHad_isFromW   = false;
+  b_genDau1_pdgId    = -99;
+  b_genDau1_pt       = -99;   b_genDau1_eta      = -99;   b_genDau1_phi  = -99; b_genDau1_mass = -99;
+  b_genDau2_pdgId    = -99;
+  b_genDau2_pt       = -99;   b_genDau2_eta      = -99;   b_genDau2_phi  = -99; b_genDau2_mass = -99;
+}
+
+void ResetJetValues() {
+  b_isSelectedJet  = false; b_hasHighestPt     = false;  b_hasClosestLep = false;
+  b_pt             = -99;   b_eta              = -99;    b_phi           = -99;   b_mass        = -99; b_ptD         = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
+  b_pdgId          = -99;   b_cMult            = -99;    b_nMult         = -99;   b_flavorAlgo  = -99; b_flavorPhys  = -99; b_bTag        = -99; b_bTagAlgo    = -99; b_bTagPhys = -99; b_tauTag = -99; b_isFrom = -99;
+  b_tauWeight      = -99;
+  ResetHadValues();
+}
+
+// object cut variables
+
+float cut_ElectronPt, cut_ElectronEta, cut_ElectronRelIso03All;
+float cut_MuonPt,     cut_MuonEta,     cut_MuonRelIso04All;
+
+float cut_VetoElectronPt, cut_VetoElectronEta, cut_VetoElectronRelIso03All;
+float cut_VetoMuonPt,     cut_VetoMuonEta,     cut_VetoMuonRelIso04All;
+  
+float cut_GenJetPt, cut_GenJetEta, cut_GenJetConeSizeOverlap;
+float cut_JetPt,    cut_JetEta,    cut_JetConeSizeOverlap;   
+float cut_BJetPt,   cut_BJetEta,   cut_BJetConeSizeOverlap;  
+
+float cut_Dilep_M, cut_MET_Pt;
+int   cut_nJet, cut_nBJet;
+
+//float cut_KsMass = 0.4976; float cut_lambda0Mass = 1.11568;
 
 //declare functions
 struct Lepton toLepton(Muon* p){ struct Lepton l; l.tlv = p->P4(); l.charge = p->Charge; l.pdgid=11*(p->Charge); return l;}
 struct Lepton toLepton(Electron* p){ struct Lepton l; l.tlv = p->P4(); l.charge = p->Charge; l.pdgid=13*(p->Charge); return l;}
 struct Lepton toLepton(const GenParticle* p){ struct Lepton l; l.tlv = p->P4(); l.charge = p->Charge; l.pdgid=p->PID; return l;}
 
-void defBranchGen(TTree* outtr);
+void DefBranch(TTree* outtr);
+void SetJetBranch(TTree* tr);
+void SetHadBranch(TTree* tr);
 
 const GenParticle* getLast(TClonesArray * particles, const GenParticle* p);
 std::vector<const GenParticle*> getMlist(TClonesArray * particles, const GenParticle* p);
-std::vector<float> collectHadron(std::vector<GenParticle> hadronsInjet, bool motherCheck);
+std::vector<float> collectHadron(std::vector<GenParticle> hadInJet, bool motherCheck);
 std::vector<Double_t> cross3D(std::vector<Double_t> & a, std::vector<Double_t> & b);
 Double_t DeltaPhi(Double_t phi1, Double_t phi2);
 Double_t DeltaR(Double_t deta, Double_t dphi);
 
-void initValues();
-void recoParticle(TH1F*);
-void genParticle(TH1F*, TH1F*);
+void ResetBranch();
+void EventSelection(TH1F*, UInt_t);
+void MatchingGenJet(TH1F*, TH1F*);
+void HadronReconstruction();
+void HadronPreselection(std::vector<RecoHad>);
+void FindTruthMatchedHadron();
+int  FindMatchedHadron(TLorentzVector, TString);
+void FillJetTree(TClonesArray* jets, TTree*, TString matchingMethod = "pT");
+void FillHadTree(TTree*);
+void SetJetValues(Jet*);
+void SetHadValues(TTree*, int,TLorentzVector jet_tlv = TLorentzVector(0, 0, 0, 0));
+//std::vector<Jet*>
+std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> recoLep);
 
 //define functions
-void defBranchGen(TTree* outtr){
+void DefBranch(TTree* outtr){
 
+  BranchTLV(recoLep1);     BranchTLV(recoLep2);
+  BranchI(recoLep1_pdgId); BranchI(recoLep2_pdgId);
+
+  BranchI(step);
   BranchF(dilepton_mass);
-
-  BranchF(x_KS); BranchF(x_KS_S); BranchF(x_KS_B); BranchF(rho_KS); BranchF(rho_KS_S); BranchF(rho_KS_B); BranchF(d_KS); BranchF(d_KS_S); BranchF(d_KS_B);
-  BranchF(x_lamb); BranchF(x_lamb_S); BranchF(x_lamb_B); BranchF(rho_lamb); BranchF(rho_lamb_S); BranchF(rho_lamb_B);  BranchF(d_lamb); BranchF(d_lamb_S); BranchF(d_lamb_B);
-
-  BranchF(significance_S); BranchF(significance_B);
-
   BranchI(dilepton_ch);
   BranchI(channel);
+
+  BranchF(Ks_x);   BranchF(Ks_x_S);   BranchF(Ks_x_B);   BranchF(Ks_rho);   BranchF(Ks_rho_S);   BranchF(Ks_rho_B);   BranchF(Ks_d);   BranchF(Ks_d_S);   BranchF(Ks_d_B);
+  BranchF(lamb_x); BranchF(lamb_x_S); BranchF(lamb_x_B); BranchF(lamb_rho); BranchF(lamb_rho_S); BranchF(lamb_rho_B); BranchF(lamb_d); BranchF(lamb_d_S); BranchF(lamb_d_B);
+
+  BranchF(significance_S); BranchF(significance_B);
 
   BranchO(gen_step0);
   BranchO(gen_step1);
 
-  BranchVF(jet_pt); BranchVF(jet_eta); BranchVF(jet_phi); BranchVF(jet_energy); BranchVI(jet_pid);
-  BranchVF(kshortsInjet_pt); BranchVF(kshortsInjet_eta); BranchVF(kshortsInjet_phi); BranchVF(kshortsInjet_energy); BranchVF(kshortsInjet_R); BranchVF(kshortsInjet_outR); BranchVF(kshortsInjet_rho); BranchVF(kshortsInjet_d); 
-  BranchVF(lambdasInjet_pt); BranchVF(lambdasInjet_eta); BranchVF(lambdasInjet_phi); BranchVF(lambdasInjet_energy); BranchVF(lambdasInjet_R); BranchVF(lambdasInjet_outR); BranchVF(lambdasInjet_rho); BranchVF(lambdasInjet_d);
-  BranchVF(leptonsInjet_pt); BranchVF(leptonsInjet_eta); BranchVF(leptonsInjet_phi); BranchVF(leptonsInjet_energy); BranchVF(leptonsInjet_R); BranchVF(leptonsInjet_outR);
-  BranchVI(nkshortsInjet); BranchVI(nlambdasInjet); BranchVI(nleptonsInjet);
+  BranchVF(jet_pt);       BranchVF(jet_eta);       BranchVF(jet_phi);       BranchVF(jet_energy);       BranchVI(jet_pdgId);
+  BranchVF(KsInJet_pt);   BranchVF(KsInJet_eta);   BranchVF(KsInJet_phi);   BranchVF(KsInJet_energy);   BranchVF(KsInJet_R);   BranchVF(KsInJet_outR);   BranchVF(KsInJet_rho);   BranchVF(KsInJet_d); 
+  BranchVF(lambInJet_pt); BranchVF(lambInJet_eta); BranchVF(lambInJet_phi); BranchVF(lambInJet_energy); BranchVF(lambInJet_R); BranchVF(lambInJet_outR); BranchVF(lambInJet_rho); BranchVF(lambInJet_d);
+  BranchVF(lepInJet_pt);  BranchVF(lepInJet_eta);  BranchVF(lepInJet_phi);  BranchVF(lepInJet_energy);  BranchVF(lepInJet_R);  BranchVF(lepInJet_outR);
+  BranchVI(nKsInJet);     BranchVI(nLambInJet);    BranchVI(nLepInJet);
 
   BranchVF(jet1_diHadron_mass);
   BranchVF(jet2_diHadron_mass);
+}
 
-  return;
+void SetJetBranch(TTree* tr) {
+  tr->Branch("isSelectedJet",    &b_isSelectedJet,    "isSelectedJet/O");
+  tr->Branch("hasHighestPt",     &b_hasHighestPt,     "hasHighestPt/O");
+  tr->Branch("hasClosestLep",    &b_hasClosestLep,    "hasClosestLep/O");
+  tr->Branch("isFrom",           &b_isFrom,           "isFrom/I");
+  tr->Branch("pt",               &b_pt,               "pt/F");
+  tr->Branch("eta",              &b_eta,              "eta/F");
+  tr->Branch("phi",              &b_phi,              "phi/F");
+  tr->Branch("mass",             &b_mass,             "mass/F");
+  tr->Branch("ptD",              &b_ptD ,             "ptD/F");
+  tr->Branch("radiusInEta",      &b_radiusInEta,      "radiusInEta/F");
+  tr->Branch("radiusInPhi",      &b_radiusInPhi,      "radiusInPhi/F");
+  tr->Branch("pdgId",            &b_pdgId,            "pdgId/I");
+  tr->Branch("cMult",            &b_cMult,            "cMult/I");
+  tr->Branch("nMult",            &b_nMult,            "nMult/I");
+  tr->Branch("flavorAlgo",       &b_flavorAlgo,       "flavorAlgo/I");
+  tr->Branch("flavorPhys",       &b_flavorPhys,       "flavorPhys/I");
+  tr->Branch("bTag",             &b_bTag,             "bTag/I");
+  tr->Branch("bTagAlgo",         &b_bTagAlgo,         "bTagAlgo/I");
+  tr->Branch("bTagPhys",         &b_bTagPhys,         "bTagPhys/I");
+  tr->Branch("tauTag",           &b_tauTag,           "tauTag/I");
+  tr->Branch("tauWeight",        &b_tauWeight,        "tauWeight/F");
+  SetHadBranch(tr);
+}
+
+void SetHadBranch(TTree* tr){
+  if (std::string(tr->GetName()).find("jet") != std::string::npos) {
+    tr->Branch("had_x",            &b_had_x,            "had_x/F");
+    tr->Branch("had_dr",           &b_had_dr,           "had_dr/F");
+  }
+  tr->Branch("had_pt",           &b_had_pt,           "had_pt/F");
+  tr->Branch("had_eta",          &b_had_eta,          "had_eta/F");
+  tr->Branch("had_phi",          &b_had_phi,          "had_phi/F");
+  tr->Branch("had_mass",         &b_had_mass,         "had_mass/F");
+  tr->Branch("had_pdgId",        &b_had_pdgId,        "had_pdgId/I");
+  tr->Branch("had_isFrom",       &b_had_isFrom,       "had_isFrom/I");   
+  tr->Branch("had_nMatched",     &b_had_nMatched,     "had_nMatched/I");
+  tr->Branch("had_isSelected",   &b_had_isSelected,   "had_isSelected/O");
+  tr->Branch("had_isJetMatched", &b_had_isJetMatched, "had_isJetMatched/O");
+  tr->Branch("dau1_pdgId",       &b_dau1_pdgId,       "dau1_pdgId/I");
+  tr->Branch("dau1_pt",          &b_dau1_pt,          "dau1_pt/F");
+  tr->Branch("dau1_eta",         &b_dau1_eta,         "dau1_eta/F");
+  tr->Branch("dau1_phi",         &b_dau1_phi,         "dau1_phi/F");
+  tr->Branch("dau1_mass",        &b_dau1_mass,        "dau1_mass/F");
+  tr->Branch("dau2_pdgId",       &b_dau2_pdgId,       "dau2_pdgId/I");
+  tr->Branch("dau2_pt",          &b_dau2_pt,          "dau2_pt/F");
+  tr->Branch("dau2_eta",         &b_dau2_eta,         "dau2_eta/F");
+  tr->Branch("dau2_phi",         &b_dau2_phi,         "dau2_phi/F");
+  tr->Branch("dau2_mass",        &b_dau2_mass,        "dau2_mass/F");
+
+  tr->Branch("genHad_x",         &b_genHad_x,         "genHad_x/F");
+  tr->Branch("genHad_pt",        &b_genHad_pt,        "genHad_pt/F");
+  tr->Branch("genHad_eta",       &b_genHad_eta,       "genHad_eta/F");
+  tr->Branch("genHad_phi",       &b_genHad_phi,       "genHad_phi/F");
+  tr->Branch("genHad_mass",      &b_genHad_mass,      "genHad_mass/F");
+  tr->Branch("genHad_pdgId",     &b_genHad_pdgId,     "genHad_pdgId/I");
+  tr->Branch("genHad_isFrom",    &b_genHad_isFrom,    "genHad_isFrom/I");
+  tr->Branch("genHad_isFromTop", &b_genHad_isFromTop, "genHad_isFromTop/O");
+  tr->Branch("genHad_isFromW",   &b_genHad_isFromW,   "genHad_isFromW/O");
+  tr->Branch("genDau1_pdgId",    &b_genDau1_pdgId,    "genDau1_pdgId/I");
+  tr->Branch("genDau1_pt",       &b_genDau1_pt,       "genDau1_pt/F");
+  tr->Branch("genDau1_eta",      &b_genDau1_eta,      "genDau1_eta/F");
+  tr->Branch("genDau1_phi",      &b_genDau1_phi,      "genDau1_phi/F");
+  tr->Branch("genDau1_mass",     &b_genDau1_mass,     "genDau1_mass/F");
+  tr->Branch("genDau2_pdgId",    &b_genDau2_pdgId,    "genDau2_pdgId/I");
+  tr->Branch("genDau2_pt",       &b_genDau2_pt,       "genDau2_pt/F");
+  tr->Branch("genDau2_eta",      &b_genDau2_eta,      "genDau2_eta/F");
+  tr->Branch("genDau2_phi",      &b_genDau2_phi,      "genDau2_phi/F");
+  tr->Branch("genDau2_mass",     &b_genDau2_mass,     "genDau2_mass/F");
+
+}
+
+void SetCutValues(UInt_t channel){
+  if (channel == 1) {
+    cut_ElectronPt     = 35; cut_ElectronEta     = 2.1; cut_ElectronRelIso03All     = 0.1;
+    cut_MuonPt         = 26; cut_MuonEta         = 2.4; cut_MuonRelIso04All         = 0.15;
+    
+    cut_VetoElectronPt = 15; cut_VetoElectronEta = 2.4; cut_VetoElectronRelIso03All = 0.25;
+    cut_VetoMuonPt     = 15; cut_VetoMuonEta     = 2.4; cut_VetoMuonRelIso04All     = 0.25;
+    
+    cut_GenJetPt       = 30; cut_GenJetEta       = 2.4; cut_GenJetConeSizeOverlap   = 0.4;
+    cut_JetPt          = 30; cut_JetEta          = 2.4; cut_JetConeSizeOverlap      = 0.4;
+    cut_BJetPt         = 30; cut_BJetEta         = 2.4; cut_BJetConeSizeOverlap     = 0.4;
+    
+    cut_Dilep_M        = 20.; cut_MET_Pt         = 40.; cut_nJet                    = 4;           cut_nBJet = 1;
+  } else if (channel == 2) {
+    cut_ElectronPt     = 20; cut_ElectronEta     = 2.4; cut_ElectronRelIso03All     = 0.12;
+    cut_MuonPt         = 20; cut_MuonEta         = 2.4; cut_MuonRelIso04All         = 0.15; 
+    
+    cut_VetoElectronPt = 20; cut_VetoElectronEta = 2.4; cut_VetoElectronRelIso03All = 10000000000; 
+    cut_VetoMuonPt     = 10; cut_VetoMuonEta     = 2.4; cut_VetoMuonRelIso04All     = 0.25; 
+    
+    cut_GenJetPt       = 30; cut_GenJetEta       = 2.4; cut_GenJetConeSizeOverlap   = 0.4;
+    cut_JetPt          = 30; cut_JetEta          = 2.4; cut_JetConeSizeOverlap      = 0.4;
+    cut_BJetPt         = 30; cut_BJetEta         = 2.4; cut_BJetConeSizeOverlap     = 0.4;
+    
+    cut_Dilep_M        = 20.; cut_MET_Pt         = 40.; cut_nJet                    = 2;           cut_nBJet = 1;
+  } else {
+    std::cout << " Set semiletpon (1) or dilepton (2) !!!! " << std::endl;
+    return;
+  }
+
 }
 
 const GenParticle* getLast(TClonesArray * particles, const GenParticle* p){
