@@ -56,30 +56,29 @@ int main(int argc, char* argv[])
 
   TString cutflow_title   = "cutflow" + inf;
   TH1F * cutflow          = new TH1F("cutflow", cutflow_title, 7,-1,6); // -1 : all events, 0 : events after lepton selection, 1~ : events after step
-  TH1F * histo_diHadron_S = new TH1F("diHadron_mass_S", "diHadron_mass_S", 300, 0, 3000);
-  TH1F * histo_diHadron_B = new TH1F("diHadron_mass_B", "diHadron_mass_B", 300, 0, 3000);
-  TH1F * histo_x_Ks       = new TH1F("hist_x_Ks", "hist_x_Ks", 100, 0, 1);
-  TH1F * histo_rho_Ks     = new TH1F("hist_rho_Ks", "hist_rho_Ks", 1000, 0, 300);
-  TH1F * histo_d_Ks       = new TH1F("hist_d_Ks", "hist_d_Ks", 1000, 0, 20);
-  TH1F * histo_x_lamb     = new TH1F("hist_x_lamb", "hist_x_lamb", 100, 0, 1);
-  TH1F * histo_rho_lamb   = new TH1F("hist_rho_lamb", "hist_rho_lamb", 1800, 0, 18000);
-  TH1F * histo_d_lamb     = new TH1F("hist_d_lamb", "hist_d_lamb", 1000, 0, 100);
 
   //Event Loop Start!
   for (size_t iev = 0; iev < inTree->GetEntries(); ++iev){
     if (iev%1000 == 0 ) cout << "event check    iev    ----> " << iev << endl;
     inTree->GetEntry(iev);
     ResetBranch();
-
+    //cout << "chk 1 " << endl;
     EventSelection(cutflow, decay_ch);
+    //cout << "chk 2 " << endl;
     if (b_step < 4) continue;
     //cout << " ============================================ " << endl;
-    MatchingGenJet(histo_diHadron_S, histo_diHadron_B);
+    MatchingGenJet();
+    //cout << "chk 3 " << endl;
     HadronReconstruction();
+    //cout << "chk 4 " << endl;
     HadronPreselection(m_recoHad);
+    //cout << "chk 5 " << endl;
     FindTruthMatchedHadron();
+    //cout << "chk 6 " << endl;
     FillJetTree(jets, jettr, "pT");
+    //cout << "chk 7 " << endl;
     FillHadTree(hadtr);
+    //cout << "chk 8 " << endl;
     //cout << " ============================================ " << endl;
     /*
     // pion track test
@@ -96,47 +95,25 @@ int main(int argc, char* argv[])
     }
     */
     outtr->Fill();
+    //cout << "chk 9 " << endl;
   }
-
   inFile->Close();
-
+  //cout << "chk 10 " << endl;
   //outtr->Write();
-
-  //outtr->SetBranchAddress("x_Ks", &b_Ks_x);
-  //outtr->SetBranchAddress("x_lamb", &b_lamb_x);
-  //outtr->SetBranchAddress("rho_Ks", &b_Ks_rho);
-  //outtr->SetBranchAddress("rho_lamb", &b_lamb_rho);
-  //outtr->SetBranchAddress("d_Ks", &b_Ks_d);
-  //outtr->SetBranchAddress("d_lamb", &b_lamb_d);
-  //for (size_t ent = 0; ent < outtr->GetEntries(); ++ent){
-  //  outtr->GetEntry(ent);
-  //  histo_x_Ks->Fill(b_Ks_x);
-  //  histo_rho_Ks->Fill(b_Ks_rho);
-  //  histo_d_Ks->Fill(b_Ks_d);
-  //  histo_x_lamb->Fill(b_lamb_x);
-  //  histo_rho_lamb->Fill(b_lamb_rho);
-  //  histo_d_lamb->Fill(b_lamb_d);
-  //}
-  //histo_x_Ks->Write();
-  //histo_rho_Ks->Write();
-  //histo_d_Ks->Write();
-  //histo_x_lamb->Write();
-  //histo_rho_lamb->Write();
-  //histo_d_lamb->Write();
-
   cutflow->Write();
-
-  //histo_diHadron_S->Write();
-  //histo_diHadron_B->Write();
+  //cout << "chk 11 " << endl;
 
   out->Write();
+  //cout << "chk 12 " << endl;
   out->Close();
-
+  //cout << "chk 13 " << endl;
   //check cpu time (end)
   std::clock_t c_end = std::clock();
   long double time_elapsed_ms = 1000.0 * (c_end - c_start) / CLOCKS_PER_SEC;
   cout << "CPU time used: " << time_elapsed_ms << " ms\n";
   cout << "CPU time used(sec): " << time_elapsed_ms/1000 << " sec\n";
+
+  //cout << "chk 14 " << endl;
   return 0;
 }
 
@@ -311,13 +288,9 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
     }
 }
 
-void MatchingGenJet(TH1F * histo_diHadron_S, TH1F * histo_diHadron_B) {
+void MatchingGenJet() {
   std::vector<const GenParticle*> genTops;
-  std::vector<std::vector<float> > jet_diHadron_mass;
-
   genTops.clear();
-  jet_diHadron_mass.clear();
-
   for (int i = 0; i < particles->GetEntries(); ++ i){
     auto p = (const GenParticle*) particles->At(i);
     if (p->Status   >  30) continue;
@@ -336,14 +309,17 @@ void MatchingGenJet(TH1F * histo_diHadron_S, TH1F * histo_diHadron_B) {
     struct Lepton lep1 = toLepton(dau1_from_W);
     struct Lepton lep2 = toLepton(dau2_from_W);
 
-    if (abs(lep1.pdgid) == 11 || abs(lep1.pdgid) == 13 || abs(lep1.pdgid) == 15) m_genLepton.push_back(lep1);
-    if (abs(lep2.pdgid) == 11 || abs(lep2.pdgid) == 13 || abs(lep2.pdgid) == 15) m_genLepton.push_back(lep2);
+    if (abs(lep1.pdgid) == 11 || abs(lep1.pdgid) == 13) m_genLepton.push_back(lep1);
+    if (abs(lep2.pdgid) == 11 || abs(lep2.pdgid) == 13) m_genLepton.push_back(lep2);
 
     //cout << m_genLepton.size() << " : quark from top : " << setw(10) << quark->PID << " | W boson : " << setw(10) << lastBoson->PID << " | dau1 : " << setw(10) << dau1_from_W->PID << " | dau2 : " << setw(10) << dau2_from_W->PID << endl;
   }
 
   if ( m_genQuark.size() < 2 ) {
     cout << "No two quarks from top quarks ... skip this event" << endl; 
+    return;
+  } else if ( (m_genLepton.size() == 1 && m_decayChannel == "di") || (m_genLepton.size() == 0 && m_decayChannel == "semi")) {
+    cout << "No two reco leptons in dileptonic channel or no reco lepton in semileptonic channel ===> Maybe because a case that W boson decay into tau / neutrino isn't included" << endl;
     return;
   }
 
@@ -419,10 +395,14 @@ void HadronReconstruction() {
   // Pick two charged hadron pairs
   for (auto i = 0; i < tracks->GetEntries(); ++i) {
     auto hadCand1 = (Track*) tracks->At(i);
-    if (hadCand1->Charge != 1 || ( abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) ) continue;
+    if (hadCand1->Charge != 1) continue; // Only pick positive charge
+    if (abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) continue; // Exclude leptons
+    if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
     for (auto j = 0; j < tracks->GetEntries(); ++j) {
       auto hadCand2 = (Track*) tracks->At(j);
-      if (hadCand2->Charge != -1 || ( abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) ) continue; 
+      if (hadCand2->Charge != -1) continue; // Only pick negative charge
+      if (abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) continue; // Exclude leptons
+      if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
 
       TLorentzVector dauCand1_pion_tlv;   
       TLorentzVector dauCand1_proton_tlv; 
@@ -514,7 +494,6 @@ void FindTruthMatchedHadron() {
       if      ( (abs(d1->PID) != 211  && abs(d2->PID) == 2212) || (abs(d1->PID) == 211  && abs(d2->PID) != 2212) ) continue;
       else if ( (abs(d1->PID) != 2212 && abs(d2->PID) == 211 ) || (abs(d1->PID) == 2212 && abs(d2->PID) != 211 ) ) continue;
     }
-
     auto motherList = getMlist(particles, p);
     for (auto j=0; j < motherList.size()-1; ++j) {
       //if ( j == 0) {
@@ -528,12 +507,10 @@ void FindTruthMatchedHadron() {
       //     << " ] th mother particle (Index) ===> "   << setw(5) << motherList[j]->PID    << " ( " << setw(4) << motherList[j+1]->D1 << " ) "
       //     << " status : "                            << setw(5) << motherList[j]->Status
       //     << endl;
-      if ( abs(motherList[j]->PID) == 24) { 
+      if ( abs(motherList[j]->PID) == 24 && !isFromW) {
         isFromW = true;
         isFrom  = motherList[j-1]->PID;
         x       = p->PT/motherList[j-1]->PT;
-        if ( abs(motherList[j-1]->PID) == 24) { isFrom = motherList[j-2]->PID; x = p->PT/motherList[j-2]->PT; } 
-        if ( abs(motherList[j-2]->PID) == 24) { isFrom = motherList[j-3]->PID; x = p->PT/motherList[j-3]->PT; } 
       }
       if ( abs(motherList[j]->PID) == 6 && motherList[j]->Status == 62 ) {
         isFromTop = true; 
@@ -670,9 +647,29 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
   b_dau2_eta         = m_recoHad[i].dau2_tlv.Eta();
   b_dau2_phi         = m_recoHad[i].dau2_tlv.Phi();
   b_dau2_mass        = m_recoHad[i].dau2_tlv.M();
+  auto dau1          = (Track*) tracks->At(m_recoHad[i].dau1_idx);
+  auto dau2          = (Track*) tracks->At(m_recoHad[i].dau2_idx);
+  b_dau1_D0          = dau1->D0;
+  b_dau1_DZ          = dau1->DZ;
+  b_dau1_ctgTheta    = dau1->CtgTheta;
+  b_dau1_ptErr       = dau1->ErrorPT;
+  b_dau1_phiErr      = dau1->ErrorPhi;
+  b_dau1_D0Err       = dau1->ErrorD0;
+  b_dau1_DZErr       = dau1->ErrorDZ;
+  b_dau1_ctgThetaErr = dau1->ErrorCtgTheta;
+  b_dau1_D0Sig       = dau1->D0/dau1->ErrorD0;
+  b_dau1_DZSig       = dau1->DZ/dau1->ErrorDZ;
+  b_dau2_D0          = dau2->D0;
+  b_dau2_DZ          = dau2->DZ;
+  b_dau2_ctgTheta    = dau2->CtgTheta;
+  b_dau2_ptErr       = dau2->ErrorPT;
+  b_dau2_phiErr      = dau2->ErrorPhi;
+  b_dau2_D0Err       = dau2->ErrorD0;
+  b_dau2_DZErr       = dau2->ErrorDZ;
+  b_dau2_ctgThetaErr = dau2->ErrorCtgTheta;
+  b_dau2_D0Sig       = dau2->D0/dau2->ErrorD0;
+  b_dau2_DZSig       = dau2->DZ/dau2->ErrorDZ;
   if (m_genHadron.size() != 0) {
-    auto dau1        = (Track*) tracks->At(m_recoHad[i].dau1_idx);
-    auto dau2        = (Track*) tracks->At(m_recoHad[i].dau2_idx);
     auto genDau1     = (GenParticle*) dau1->Particle.GetObject();
     auto genDau2     = (GenParticle*) dau2->Particle.GetObject();
     //cout << " genHad[genDau1->M1].idx : "   << setw(5) << m_genHadron[genDau1->M1].idx 
@@ -685,6 +682,7 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
     //     << " genDau2->pdgid : "            << setw(5) << genDau2->PID
     //     << endl;
     if ((genDau1->M1 == genDau2->M1) && m_genHadron[genDau1->M1].pdgid != 0) {
+      auto genp = (const GenParticle*) particles->At(genDau1->M1);
       b_had_nMatched      = 2;
       b_genHad_x          = m_genHadron[genDau1->M1].x;
       b_genHad_pdgId      = m_genHadron[genDau1->M1].pdgid;
@@ -695,16 +693,26 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
       b_genHad_isFrom     = m_genHadron[genDau1->M1].isFrom;
       b_genHad_isFromTop  = m_genHadron[genDau1->M1].isFromTop;
       b_genHad_isFromW    = m_genHadron[genDau1->M1].isFromW;
+      b_genHad_isPU       = genp->IsPU;
+      b_genHad_D0         = genp->D0;
+      b_genHad_DZ         = genp->DZ;
+      b_genHad_ctgTheta   = genp->CtgTheta;
       b_genDau1_pdgId     = m_genHadron[genDau1->M1].dau1_pdgid;
       b_genDau1_pt        = m_genHadron[genDau1->M1].dau1_tlv.Pt();
       b_genDau1_eta       = m_genHadron[genDau1->M1].dau1_tlv.Eta();
       b_genDau1_phi       = m_genHadron[genDau1->M1].dau1_tlv.Phi();
       b_genDau1_mass      = m_genHadron[genDau1->M1].dau1_tlv.M();
+      b_genDau1_D0        = genDau1->D0;
+      b_genDau1_DZ        = genDau1->DZ;
+      b_genDau1_ctgTheta  = genDau1->CtgTheta;
       b_genDau2_pdgId     = m_genHadron[genDau1->M1].dau2_pdgid;
       b_genDau2_pt        = m_genHadron[genDau1->M1].dau2_tlv.Pt();
       b_genDau2_eta       = m_genHadron[genDau1->M1].dau2_tlv.Eta();
       b_genDau2_phi       = m_genHadron[genDau1->M1].dau2_tlv.Phi();
       b_genDau2_mass      = m_genHadron[genDau1->M1].dau2_tlv.M();
+      b_genDau2_D0        = genDau2->D0;
+      b_genDau2_DZ        = genDau2->DZ;
+      b_genDau2_ctgTheta  = genDau2->CtgTheta;
     } else if ( (m_genHadron[genDau1->M1].idx == genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) || (m_genHadron[genDau1->M1].idx == genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) ) {
       b_had_nMatched = 1;
     } else if ( (m_genHadron[genDau1->M1].idx != genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) ) {
