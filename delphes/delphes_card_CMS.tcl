@@ -14,7 +14,8 @@ set ExecutionPath {
   MuonMomentumSmearing
 
   TrackMerger
- 
+  TrackSmearing 
+
   ECal
   HCal
  
@@ -85,7 +86,7 @@ module ParticlePropagator ParticlePropagator {
 
 #module DecayFilter DecayFilter {
 #  set InputArray FastJetFinder/jets
-#  #set InputArray TrackMerger/tracks
+#  #set InputArray TrackSmearing/tracks
 #  #add InputArray ParticlePropagtor/stableParticles
 #  #add InputArray ParticlePropagator/chargedHadrons
 #
@@ -223,6 +224,22 @@ module Merger TrackMerger {
   set OutputArray tracks
 }
 
+################################                                                                    
+## Track impact parameter smearing                                                                   
+#################################                                                                    
+
+module TrackSmearing TrackSmearing {
+set InputArray TrackMerger/tracks
+#  set BeamSpotInputArray BeamSpotFilter/beamSpotParticle
+set OutputArray tracks
+#  set ApplyToPileUp true
+
+# magnetic field
+set Bz 3.8
+
+source trackResolutionCMS.tcl
+}
+
 
 
 #############
@@ -231,7 +248,7 @@ module Merger TrackMerger {
 
 module SimpleCalorimeter ECal {
   set ParticleInputArray ParticlePropagator/stableParticles
-  set TrackInputArray TrackMerger/tracks
+  set TrackInputArray TrackSmearing/tracks
 
   set TowerOutputArray ecalTowers
   set EFlowTrackOutputArray eflowTracks
@@ -804,7 +821,7 @@ module TreeWriter TreeWriter {
 # add Branch InputArray BranchName BranchClass
   add Branch Delphes/allParticles Particle GenParticle
 
-  add Branch TrackMerger/tracks Track Track
+  add Branch TrackSmearing/tracks Track Track
   add Branch Calorimeter/towers Tower Tower
 
   add Branch HCal/eflowTracks EFlowTrack Track
