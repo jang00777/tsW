@@ -15,52 +15,71 @@
 #include "classes/DelphesClasses.h"
 #include "wj_analysis.h"
 
+using namespace std;
+
 int main(int argc, char* argv[])
 {
   auto inf = std::string{argv[1]};
   auto outf = std::string{argv[2]};
+  m_decayChannel = std::string{argv[3]};
 
   // check cpu time (start)
   std::clock_t c_start = std::clock();
 
   //read input file
-  auto tfiles = TFile::Open(inf.c_str(), "READ");
-  auto trees = (TTree*) tfiles->Get("Delphes");
-  trees->SetBranchStatus("*", true);
-  trees->SetBranchAddress("GenJet",      &gen_jets);
-  trees->SetBranchAddress("Particle",    &particles);
-  trees->SetBranchAddress("Electron",    &electrons);
-  trees->SetBranchAddress("Muon",        &muons);
-  trees->SetBranchAddress("Jet",         &jets);
-  trees->SetBranchAddress("MissingET",   &missingET);
-  trees->SetBranchAddress("Track",       &tracks);
+  cout << "Input File : " << inf.c_str() << "\nOutput File : " << outf.c_str() << "\nDecay Channel : " << m_decayChannel.c_str() << endl;
+  int decay_ch = 0;
+  if (m_decayChannel == "semilepton" || m_decayChannel == "semi") decay_ch = 1;
+  if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   decay_ch = 2;
+
+  auto inFile = TFile::Open(inf.c_str(), "READ");
+  auto inTree = (TTree*) inFile->Get("Delphes");
+  inTree->SetBranchStatus("*", true);
+  inTree->SetBranchAddress("GenJet",      &gen_jets);
+  inTree->SetBranchAddress("Particle",    &particles);
+  inTree->SetBranchAddress("Electron",    &electrons);
+  inTree->SetBranchAddress("Muon",        &muons);
+  inTree->SetBranchAddress("Jet",         &jets);
+  inTree->SetBranchAddress("MissingET",   &missingET);
+  inTree->SetBranchAddress("Track",       &tracks);
 
   //make out file
-  auto out = TFile::Open(outf.c_str(), "RECREATE");
-  auto outtr = new TTree("tsw", "tsw");
+  auto out   = TFile::Open(outf.c_str(), "RECREATE");
+  auto outtr = new TTree("event", "event");
+  auto jettr = new TTree("MVA_jet", "MVA_jet");
+  auto hadtr = new TTree("MVA_had", "MVA_had");
 
-  defBranchGen(outtr);
 
-  TString cutflow_title = "cutflow" + inf;
-  TH1F * cutflow = new TH1F("cutflow", cutflow_title, 7,-1,6); // -1 : all events, 0 : events after lepton selection, 1~ : events after step
-  TH1F * histo_dihadron_S = new TH1F("dihadron_mass_S", "dihadron_mass_S", 300, 0, 3000);
-  TH1F * histo_dihadron_B = new TH1F("dihadron_mass_B", "dihadron_mass_B", 300, 0, 3000);
-  TH1F * histo_x_KS = new TH1F("hist_x_KS", "hist_x_KS", 100, 0, 1);
-  TH1F * histo_rho_KS = new TH1F("hist_rho_KS", "hist_rho_KS", 1000, 0, 300);
-  TH1F * histo_d_KS = new TH1F("hist_d_KS", "hist_d_KS", 1000, 0, 20);
-  TH1F * histo_x_lamb = new TH1F("hist_x_lamb", "hist_x_lamb", 100, 0, 1);
-  TH1F * histo_rho_lamb = new TH1F("hist_rho_lamb", "hist_rho_lamb", 1800, 0, 18000);
-  TH1F * histo_d_lamb = new TH1F("hist_d_lamb", "hist_d_lamb", 1000, 0, 100);
+  DefBranch(outtr);
+  SetJetBranch(jettr);
+  SetHadBranch(hadtr);
+
+  TString cutflow_title   = "cutflow" + inf;
+  TH1F * cutflow          = new TH1F("cutflow", cutflow_title, 7,-1,6); // -1 : all events, 0 : events after lepton selection, 1~ : events after step
 
   //Event Loop Start!
-  for (size_t iev = 0; iev < trees->GetEntries(); ++iev){
-    if (iev%1000 == 0 ) std::cout << "event check    iev    ----> " << iev << std::endl;
-    trees->GetEntry(iev);
-    initValues();
-
-    recoParticle(cutflow);
-    genParticle(histo_dihadron_S, histo_dihadron_B);
-
+  for (size_t iev = 0; iev < inTree->GetEntries(); ++iev){
+    if (iev%1000 == 0 ) cout << "event check    iev    ----> " << iev << endl;
+    inTree->GetEntry(iev);
+    ResetBranch();
+    //cout << "chk 1 " << endl;
+    EventSelection(cutflow, decay_ch);
+    //cout << "chk 2 " << endl;
+    if (b_step < 4) continue;
+    //cout << " ============================================ " << endl;
+    MatchingGenJet();
+    //cout << "chk 3 " << endl;
+    HadronReconstruction();
+    //cout << "chk 4 " << endl;
+    HadronPreselection(m_recoHad);
+    //cout << "chk 5 " << endl;
+    FindTruthMatchedHadron();
+    //cout << "chk 6 " << endl;
+    FillJetTree(jets, jettr, "pT");
+    //cout << "chk 7 " << endl;
+    FillHadTree(hadtr);
+    //cout << "chk 8 " << endl;
+    //cout << " ============================================ " << endl;
     /*
     // pion track test
     for (unsigned i = 0; i < tracks->GetEntries(); ++ i){
@@ -68,7 +87,7 @@ int main(int argc, char* argv[])
       if (abs(track->PID) == 321){
         auto genTrack = (GenParticle*) track->Particle.GetObject();
         auto genTrack_mom = (const GenParticle*) particles->At(genTrack->M1);
-        std::cout << genTrack_mom->PID << std::endl;
+        cout << genTrack_mom->PID << endl;
         float pionR = sqrt(pow(track->X,2)+pow(track->Y,2)+pow(track->Z,2));
         float pionRd = sqrt(pow(track->Xd,2)+pow(track->Yd,2)+pow(track->Zd,2));
         float pionROuter = sqrt(pow(track->XOuter,2)+pow(track->YOuter,2)+pow(track->ZOuter,2));
@@ -76,445 +95,632 @@ int main(int argc, char* argv[])
     }
     */
     outtr->Fill();
+    //cout << "chk 9 " << endl;
   }
-
-  tfiles->Close();
-
-  outtr->Write();
-
-  outtr->SetBranchAddress("x_KS", &x_KS);
-  outtr->SetBranchAddress("x_lamb", &x_lamb);
-  outtr->SetBranchAddress("rho_KS", &rho_KS);
-  outtr->SetBranchAddress("rho_lamb", &rho_lamb);
-  outtr->SetBranchAddress("d_KS", &d_KS);
-  outtr->SetBranchAddress("d_lamb", &d_lamb);
-  for (size_t ent = 0; ent < outtr->GetEntries(); ++ent){
-    outtr->GetEntry(ent);
-    histo_x_KS->Fill(x_KS);
-    histo_rho_KS->Fill(rho_KS);
-    histo_d_KS->Fill(d_KS);
-    histo_x_lamb->Fill(x_lamb);
-    histo_rho_lamb->Fill(rho_lamb);
-    histo_d_lamb->Fill(d_lamb);
-  }
-  histo_x_KS->Write();
-  histo_rho_KS->Write();
-  histo_d_KS->Write();
-  histo_x_lamb->Write();
-  histo_rho_lamb->Write();
-  histo_d_lamb->Write();
-
+  inFile->Close();
+  //cout << "chk 10 " << endl;
+  //outtr->Write();
   cutflow->Write();
+  //cout << "chk 11 " << endl;
 
-  histo_dihadron_S->Write();
-  histo_dihadron_B->Write();
-
+  out->Write();
+  //cout << "chk 12 " << endl;
   out->Close();
-
+  //cout << "chk 13 " << endl;
   //check cpu time (end)
   std::clock_t c_end = std::clock();
   long double time_elapsed_ms = 1000.0 * (c_end - c_start) / CLOCKS_PER_SEC;
-  std::cout << "CPU time used: " << time_elapsed_ms << " ms\n";
-  std::cout << "CPU time used(sec): " << time_elapsed_ms/1000 << " sec\n";
+  cout << "CPU time used: " << time_elapsed_ms << " ms\n";
+  cout << "CPU time used(sec): " << time_elapsed_ms/1000 << " sec\n";
+
+  //cout << "chk 14 " << endl;
   return 0;
 }
 
-void initValues(){
-    // genParticle()
-    dilepton_mass = -99; dilepton_ch = 0; 
+void ResetBranch(){
+    m_genQuark.clear();    m_genLepton.clear();  m_genHadron.clear();
+    m_selectedJet.clear(); m_matchedJet.clear();
+    m_recoHad.clear();
 
-    x_KS = -1; x_KS_S = -1; x_KS_B = -1; rho_KS = -99; rho_KS_S = -99; rho_KS_B = -99; d_KS = -99; d_KS_S = -99; d_KS_B = -99;
-    x_lamb = -1; x_lamb_S = -1; x_lamb_B = -1; rho_lamb = -999; rho_lamb_S = -999; rho_lamb_B = -999; d_lamb = -99; d_lamb_S = -99; d_lamb_B = -99;
 
-    significance_S = -99; significance_B = -99;
+    b_recoLep1.SetPtEtaPhiM(0,0,0,0); b_recoLep2.SetPtEtaPhiM(0,0,0,0);
+    b_recoLep1_pdgId = -99; b_recoLep2_pdgId = -99;
 
-    channel = 0;
+    // MatchingGenJet()
+    b_dilepton_mass = -99; b_dilepton_ch = 0; b_step = 0; 
 
-    gen_step0 = false; gen_step1 = false;
+    b_Ks_x   = -1; b_Ks_x_S   = -1; b_Ks_x_B   = -1; b_Ks_rho   = -99;  b_Ks_rho_S   = -99;  b_Ks_rho_B   = -99;  b_Ks_d   = -99; b_Ks_d_S   = -99; b_Ks_d_B   = -99;
+    b_lamb_x = -1; b_lamb_x_S = -1; b_lamb_x_B = -1; b_lamb_rho = -999; b_lamb_rho_S = -999; b_lamb_rho_B = -999; b_lamb_d = -99; b_lamb_d_S = -99; b_lamb_d_B = -99;
 
-    jet_pt.clear(); jet_eta.clear(); jet_phi.clear(); jet_energy.clear();
-    jet_pid.clear();
+    b_significance_S = -99; b_significance_B = -99;
 
-    kshortsInjet_pt.clear(); kshortsInjet_eta.clear(); kshortsInjet_phi.clear(); kshortsInjet_energy.clear(); kshortsInjet_R.clear(); kshortsInjet_outR.clear(); kshortsInjet_rho.clear(); kshortsInjet_d.clear();
-    lambdasInjet_pt.clear(); lambdasInjet_eta.clear(); lambdasInjet_phi.clear(); lambdasInjet_energy.clear(); lambdasInjet_R.clear(); lambdasInjet_outR.clear(); lambdasInjet_rho.clear(); lambdasInjet_d.clear();
-    leptonsInjet_pt.clear(); leptonsInjet_eta.clear(); leptonsInjet_phi.clear(); leptonsInjet_energy.clear(); leptonsInjet_R.clear();
-    nkshortsInjet.clear(); nlambdasInjet.clear(); nleptonsInjet.clear();
+    b_channel = -1;
 
-    jet1_diHadron_mass.clear(); jet2_diHadron_mass.clear();
+    b_gen_step0 = false; b_gen_step1 = false;
+
+    b_jet_pt.clear(); b_jet_eta.clear(); b_jet_phi.clear(); b_jet_energy.clear();
+    b_jet_pdgId.clear();
+
+    b_KsInJet_pt.clear();   b_KsInJet_eta.clear();   b_KsInJet_phi.clear();   b_KsInJet_energy.clear();   b_KsInJet_R.clear();   b_KsInJet_outR.clear();   b_KsInJet_rho.clear();   b_KsInJet_d.clear();
+    b_lambInJet_pt.clear(); b_lambInJet_eta.clear(); b_lambInJet_phi.clear(); b_lambInJet_energy.clear(); b_lambInJet_R.clear(); b_lambInJet_outR.clear(); b_lambInJet_rho.clear(); b_lambInJet_d.clear();
+    b_lepInJet_pt.clear();  b_lepInJet_eta.clear();  b_lepInJet_phi.clear();  b_lepInJet_energy.clear();  b_lepInJet_R.clear();
+
+    b_nKsInJet.clear(); b_nLambInJet.clear(); b_nLepInJet.clear();
+
+    b_jet1_diHadron_mass.clear(); b_jet2_diHadron_mass.clear();
 }
 
-void recoParticle(TH1F * cutflow){
-    cutflow->Fill(-1);
+//std::vector<Jet*> 
+std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> recoLep) {
+  //std::vector<Jet*>
+  std::map<int, Jet*> selectedJets;
+  for ( unsigned k = 0; k < jets->GetEntries(); ++k){
+    auto jet = (Jet*) jets->At(k);
+    if (jet->PT < cut_JetPt) continue;
+    if (abs(jet->Eta) > cut_JetEta) continue;
+    bool hasOverlap = false;
+    for (auto lep : recoLep) { if ((jet->P4()).DeltaR(lep.tlv) < 0.4) hasOverlap = true; }
+    if (hasOverlap) continue;
+    selectedJets[k] = jet;
+  }
+  return selectedJets;
+}
+
+void EventSelection(TH1F * cutflow, UInt_t decaychannel){
+    cutflow->Fill(0);
     // object selection
-    std::vector<struct Lepton> recolep;
+    std::vector<struct Lepton> recoLep;
+    std::vector<struct Lepton> recoEl;
+    std::vector<struct Lepton> recoMu;
+
+    SetCutValues(decaychannel); // decaychannel == 1 : Semileptonic decay channel / decaychannel == 2 : Dileptonic decay channel
+
+    // get recoLep vector
     for (unsigned i = 0; i < muons->GetEntries(); ++i){
       auto mu = (Muon*) muons->At(i);
-      if (abs(mu->Eta) > 2.4) continue;
-      if (mu->PT < 20.) continue;
-      recolep.push_back(toLepton(mu));
+      if (abs(mu->Eta) > cut_MuonEta) continue;
+      if (mu->PT       < cut_MuonPt)  continue;
+      if (mu->IsolationVar > cut_MuonRelIso04All) continue;
+      recoMu.push_back(toLepton(mu));
     }
     for (unsigned j = 0; j < electrons->GetEntries(); ++j){
       auto elec = (Electron*) electrons->At(j);
-      if (abs(elec->Eta) > 2.4) continue;
-      if (elec->PT < 20.) continue;
-      recolep.push_back(toLepton(elec));
+      if (abs(elec->Eta) > cut_ElectronEta) continue;
+      if (elec->PT       < cut_ElectronPt)  continue;
+      if (elec->IsolationVar > cut_ElectronRelIso03All) continue;
+      recoEl.push_back(toLepton(elec));
     }
 
-    // pick highest pt lep pair
-    if (recolep.size() < 2 ) return;
+    // jet selection
+    m_selectedJet = JetSelection(jets, recoLep);
 
-    sort(recolep.begin(), recolep.end(), [](struct Lepton a, struct Lepton b){return a.tlv.Pt() > b.tlv.Pt();});
-    recolep.erase(recolep.begin()+2,recolep.end());
-
-    cutflow->Fill(0);
-
-    auto dilepton = recolep[0].tlv + recolep[1].tlv;
-    dilepton_ch = abs(recolep[0].pdgid) + abs(recolep[1].pdgid); // 22 -> ee , 24 -> emu , 26 -> mumu
-    dilepton_mass = dilepton.M();
-
-    // step 1
-    if(dilepton.M() < 20. || recolep[0].charge * recolep[1].charge > 0 ) return;
-    cutflow->Fill(1);
-
-    // step2
-    if ( (dilepton_ch != 24) && ( dilepton.M() > 76. && dilepton.M() < 106.) ) return;
-    cutflow->Fill(2);
-
-    // step3
-    auto met = ((MissingET*) missingET->At(0))->MET;
-    if ( (dilepton_ch != 24) && (met < 40.) ) return;
-    cutflow->Fill(3);
-
-    // step4  
-    std::vector<Jet*> selectedJets;
-    for ( unsigned k = 0; k < jets->GetEntries(); ++k){
-      auto jet = (Jet*) jets->At(k);
-      if (jet->PT < 30.) continue;
-      if (abs(jet->Eta) > 2.4) continue;
-      bool hasOverlap = false;
-      for (auto lep : recolep) { if ((jet->P4()).DeltaR(lep.tlv) < 0.4) hasOverlap = true; }
-      if (hasOverlap) continue;
-      selectedJets.push_back(jet);
-    }
-    if (selectedJets.size() < 2) return;
-    cutflow->Fill(4);
-
-    // step5
+    // b-jet selection
     std::vector<Jet*> selectedBJets;
-    for (auto jet : selectedJets){
-      if (jet->BTag) selectedBJets.push_back(jet);
+    //for (auto jet : m_selectedJet){
+    for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){
+      if (jet->second->BTag) selectedBJets.push_back(jet->second);
     }
-    if (selectedBJets.size() < 1) return;
-    cutflow->Fill(5);
 
+    // Semi-lepton case
+    if (decaychannel == 1) {
+      // get vetoLep vector
+      std::vector<struct Lepton> vetoEl;
+      std::vector<struct Lepton> vetoMu;
+      for (unsigned j = 0; j < electrons->GetEntries(); ++j){
+        auto elec = (Electron*) electrons->At(j);
+        if (elec->PT < cut_VetoElectronPt) continue;
+        if (abs(elec->Eta) > cut_VetoElectronEta) continue;
+        if (elec->IsolationVar > cut_ElectronRelIso03All ) continue;
+        vetoEl.push_back(toLepton(elec));
+      }
+      for (unsigned i = 0; i < muons->GetEntries(); ++i){
+        auto mu = (Muon*) muons->At(i);
+        if (mu->PT < cut_VetoMuonPt) continue;
+        if (abs(mu->Eta) > cut_VetoMuonEta) continue;
+        if (mu->IsolationVar > cut_MuonRelIso04All ) continue;
+        vetoMu.push_back(toLepton(mu));
+      }
+
+      // step 1 : lepton reconstruction
+      if (recoEl.size() + recoMu.size() != 1 ) {b_step = 0; return;}
+      cutflow->Fill(1);
+      if (recoEl.size() == 1 && recoMu.size() == 0) {b_recoLep1 = recoEl[0].tlv; b_recoLep1_pdgId = recoEl[0].pdgid ;}
+      if (recoEl.size() == 0 && recoMu.size() == 1) {b_recoLep1 = recoMu[0].tlv; b_recoLep1_pdgId = recoMu[0].pdgid ;}
+
+      // step 2 : veto additional lepton
+      if ( (recoMu.size() == 0 && vetoMu.size() > 0) || (recoMu.size() == 1 && vetoMu.size() >1) ) {b_step = 1; return;}
+      if ( (recoEl.size() == 0 && vetoEl.size() > 0) || (recoEl.size() == 1 && vetoEl.size() >1) ) {b_step = 1; return;}
+      cutflow->Fill(2);
+
+      // step 3 : jet selection 
+      if (m_selectedJet.size() < cut_nJet) {b_step = 2; return;}
+      cutflow->Fill(3);
+
+      // step 4 : b-jet selection
+      if (selectedBJets.size() < cut_nBJet) {b_step = 3; return;}
+      cutflow->Fill(4);
+      b_step = 4;
+    }
+
+    // Di-lepton case
+    if (decaychannel == 2) {
+      // step 1 : lepton pair reconstruction
+      if (recoEl.size() + recoMu.size() != 2 ) {b_step = 0; return;}
+  
+      if (recoEl.size() == 1 && recoMu.size() == 1) {
+        recoLep.push_back(recoEl[0]);
+        recoLep.push_back(recoMu[0]);
+      } else if (recoEl.size() == 0 && recoMu.size() == 2) {
+        recoLep.push_back(recoMu[0]);
+        recoLep.push_back(recoMu[1]);
+      } else if (recoEl.size() == 2 && recoMu.size() == 0) {
+        recoLep.push_back(recoEl[0]);
+        recoLep.push_back(recoEl[1]);
+      }
+      b_recoLep1       = recoLep[0].tlv;   b_recoLep2       = recoLep[1].tlv;
+      b_recoLep1_pdgId = recoLep[0].pdgid; b_recoLep2_pdgId = recoLep[1].pdgid;
+
+      auto dilepton = recoLep[0].tlv + recoLep[1].tlv;
+      auto mulpdg   = recoLep[0].charge * recoLep[1].charge;
+      b_dilepton_ch   = abs(recoLep[0].pdgid) + abs(recoLep[1].pdgid); // 22 -> ee , 24 -> emu , 26 -> mumu
+      b_dilepton_mass = dilepton.M();
+
+      if (b_dilepton_mass < cut_Dilep_M || mulpdg > 0) {b_step = 0; return;}
+      cutflow->Fill(1);
+  
+      // step 2 : veto Z boson
+      if ( (b_dilepton_ch != 24) && ( dilepton.M() > 76. && dilepton.M() < 106.) ) {b_step = 1; return;}
+      cutflow->Fill(2);
+  
+      // step 3 : MET cut
+      auto met = ((MissingET*) missingET->At(0))->MET;
+      if ( (b_dilepton_ch != 24) && (met < cut_MET_Pt) ) {b_step = 2; return;}
+      cutflow->Fill(3);
+  
+      // step 4 : jet selection
+      if (m_selectedJet.size() < cut_nJet) {b_step = 3; return;}
+      cutflow->Fill(4);
+  
+      // step 5 : b-jet selection (not used)
+      if (selectedBJets.size() < cut_nBJet) {b_step = 4; return;}
+      cutflow->Fill(5);
+      b_step = 5;
+    }
 }
 
-void genParticle(TH1F * histo_dihadron_S, TH1F * histo_dihadron_B){
-    std::vector<const GenParticle*> genTops;
-    std::vector<const GenParticle*> genJets;
-    std::vector<struct Lepton> genLeps;
-    std::vector<std::vector<float> > jet_diHadron_mass;
+void MatchingGenJet() {
+  std::vector<const GenParticle*> genTops;
+  genTops.clear();
+  for (int i = 0; i < particles->GetEntries(); ++ i){
+    auto p = (const GenParticle*) particles->At(i);
+    if (p->Status   >  30) continue;
+    if (abs(p->PID) != 6)  continue;
+    auto top = getLast(particles,p);
+    genTops.push_back(top);
 
-    for (unsigned i = 0; i < particles->GetEntries(); ++ i){
-      auto p = (const GenParticle*) particles->At(i);
-      if (p->Status > 30) continue;
-      if (abs(p->PID) != 6) continue;
-      auto top = getLast(particles,p);
-      genTops.push_back(top);
+    auto quark     = (const GenParticle*) particles->At(top->D1);
+    auto Wboson    = (const GenParticle*) particles->At(top->D2);
+    auto lastBoson = getLast(particles, Wboson);
+    m_genQuark.push_back(quark);
 
-      auto jet = (const GenParticle*) particles->At(top->D2);
-      auto Wboson = (const GenParticle*) particles->At(top->D1);
-      auto lastBoson = getLast(particles, Wboson);
-      genJets.push_back(jet);
+    auto dau1_from_W = (const GenParticle*) particles->At(lastBoson->D1); // for dilep, always neutrino
+    auto dau2_from_W = (const GenParticle*) particles->At(lastBoson->D2); // for dilep, always e/mu/tau
 
-      auto lep_tmp = (const GenParticle*) particles->At(lastBoson->D1);
-      auto neu = (const GenParticle*) particles->At(lastBoson->D2);
+    struct Lepton lep1 = toLepton(dau1_from_W);
+    struct Lepton lep2 = toLepton(dau2_from_W);
 
-      struct Lepton lep = toLepton(lep_tmp);
-      genLeps.push_back(lep);
+    if (abs(lep1.pdgid) == 11 || abs(lep1.pdgid) == 13) m_genLepton.push_back(lep1);
+    if (abs(lep2.pdgid) == 11 || abs(lep2.pdgid) == 13) m_genLepton.push_back(lep2);
 
-      if (genLeps.size() == 2){
-        if (abs(genLeps[0].pdgid) == 11 ||abs(genLeps[0].pdgid) == 13 ||abs(genLeps[0].pdgid) == 15){
-          if (abs(genLeps[1].pdgid) == 11 ||abs(genLeps[1].pdgid) == 13 ||abs(genLeps[1].pdgid) == 15){
-            channel = 2;
-          }
-        }
-        else channel = 1;
-      }
+    //cout << m_genLepton.size() << " : quark from top : " << setw(10) << quark->PID << " | W boson : " << setw(10) << lastBoson->PID << " | dau1 : " << setw(10) << dau1_from_W->PID << " | dau2 : " << setw(10) << dau2_from_W->PID << endl;
+  }
 
+  if ( m_genQuark.size() < 2 ) {
+    cout << "No two quarks from top quarks ... skip this event" << endl; 
+    return;
+  } else if ( (m_genLepton.size() == 1 && m_decayChannel == "di") || (m_genLepton.size() == 0 && m_decayChannel == "semi")) {
+    cout << "No two reco leptons in dileptonic channel or no reco lepton in semileptonic channel ===> Maybe because a case that W boson decay into tau / neutrino isn't included" << endl;
+    return;
+  }
 
-      jet_pid.push_back(jet->PID);
-      auto jet_tlv = jet->P4();
-      jet_pt.push_back(jet_tlv.Pt());
-      jet_eta.push_back(jet_tlv.Eta());
-      jet_phi.push_back(jet_tlv.Phi());
-      jet_energy.push_back(jet_tlv.E());
+  TLorentzVector wl1_tlv;
+  TLorentzVector wl2_tlv;
+  if (m_decayChannel == "dilepton" || m_decayChannel == "di") {//m_genLepton.size() == 2){
+    if (abs(m_genLepton[0].pdgid) == abs(m_genLepton[1].pdgid)) {
+      if      (abs(m_genLepton[0].pdgid) == 11) b_channel = 1; // ee channel
+      else if (abs(m_genLepton[0].pdgid) == 13) b_channel = 2; // mm channel
+      else if (abs(m_genLepton[0].pdgid) == 15) b_channel = 3; // tau
+    } else b_channel = 0; // em channel
+  } else if (m_decayChannel == "semilepton" || m_decayChannel == "semi") {//else if (m_genLepton.size() == 1) {
+    if      (abs(m_genLepton[0].pdgid) == 11) b_channel = 1; // e+jet channel
+    else if (abs(m_genLepton[0].pdgid) == 13) b_channel = 2; // mu+jet channel
+    else if (abs(m_genLepton[0].pdgid) == 15) b_channel = 3; // tau+jet channel
+  }
 
-      // collect jet constitues
-      std::vector<GenParticle> jetConstitues;
-      std::vector<int> pdgList = {211, 321, 2212, 310, 3122, 11, 13};
-      for (unsigned i2 = 0; i2 < particles->GetEntries(); ++ i2){
-        auto p2 = (const GenParticle*) particles->At(i2);
+  //for (unsigned int i = 0; i < m_selectedJet.size(); ++i) {
+  for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){
+    auto jIdx = jet->first; 
+    auto selJet = jet->second;
+    TLorentzVector jet_tlv = selJet->P4();
+    auto tq1_tlv = m_genQuark[0]->P4();
+    auto tq2_tlv = m_genQuark[1]->P4();
 
-        if ( !(std::find(pdgList.begin(), pdgList.end(), abs(p2->PID)) != pdgList.end()) ) continue;
-	    if ( jet_tlv.DeltaR(p2->P4()) > 0.5) continue;
-        bool fromJet = false;
-        std::vector<const GenParticle*> mlist = getMlist(particles, p2);
-        for (auto m : mlist){ if (m == jet) fromJet = true; }
-        if (!fromJet) continue;
-        
-        jetConstitues.push_back(*p2);
-      }
-      /*
-      // collect jet constitues
-      std::vector<GenParticle> jetConstitues;
-      std::vector<int> pdgList = {211, 321, 2212, 310, 3122, 11, 13};
-      for ( unsigned k = 0; k < gen_jets->GetEntries(); ++k){
-        auto genjet = (Jet*) gen_jets->At(k);
-        auto test = (genjet->Constituents).At(0);
-        std::cout << test->PID << std::endl;
-        for (c : jet.Constituents){
-          if ( !(std::find(pdgList.begin(), pdgList.end(), abs(p2->PID)) != pdgList.end()) ) continue;
-          jetConstitues.push_back(*p2);
-        }
-      }
-      */
+    if (m_decayChannel == "dilepton"   || m_decayChannel == "di") { wl1_tlv = m_genLepton[0].tlv; wl2_tlv = m_genLepton[1].tlv;}
+    if (m_decayChannel == "semilepton" || m_decayChannel == "semi") { wl1_tlv = m_genLepton[0].tlv;}
 
-      std::vector<GenParticle> kshortsInjet;
-      std::vector<GenParticle> lambdasInjet;
-      std::vector<GenParticle> hadronsInjet;
-      std::vector<GenParticle> leptonsInjet;
-      for (auto c : jetConstitues){
-        int absPid = abs(c.PID);
-        if (absPid == 310) kshortsInjet.push_back(c);
-        if (absPid == 3122) lambdasInjet.push_back(c);
-        if (absPid == 2212 || absPid == 321 || absPid == 211)  hadronsInjet.push_back(c);
-        if (absPid == 11 || absPid == 13)  leptonsInjet.push_back(c);
-      }
-
-      // save highest pT Ks only
-      nkshortsInjet.push_back(kshortsInjet.size());
-      if (kshortsInjet.size() >0){
-        sort(kshortsInjet.begin(), kshortsInjet.end(), [](GenParticle a, GenParticle b){return a.PT > b.PT;});
-
-        kshortsInjet_pt.push_back(kshortsInjet[0].PT);
-        kshortsInjet_eta.push_back(kshortsInjet[0].Eta);
-        kshortsInjet_phi.push_back(kshortsInjet[0].Phi);
-        kshortsInjet_energy.push_back(kshortsInjet[0].E);
-        auto R = sqrt(pow(kshortsInjet[0].X,2)+pow(kshortsInjet[0].Y,2)+pow(kshortsInjet[0].Z,2));
-        kshortsInjet_R.push_back(R);
-
-        auto kshortDau = (const GenParticle*) particles->At(kshortsInjet[0].D1);
-        auto outR = sqrt(pow(kshortDau->X,2)+pow(kshortDau->Y,2)+pow(kshortDau->Z,2));
-        kshortsInjet_outR.push_back(outR);
-
-        auto rho = sqrt(kshortDau->X*kshortDau->X + kshortDau->Y*kshortDau->Y);
-
-        kshortsInjet_rho.push_back(rho);
-
-	std::vector<Double_t> PVtoKS = { kshortDau->X, kshortDau->Y, kshortDau->Z };
-	std::vector<Double_t> momentum_unit = { (kshortsInjet[0].Px/sqrt(kshortsInjet[0].Px*kshortsInjet[0].Px + kshortsInjet[0].Py*kshortsInjet[0].Py + kshortsInjet[0].Pz*kshortsInjet[0].Pz )), (kshortsInjet[0].Py/sqrt(kshortsInjet[0].Px*kshortsInjet[0].Px + kshortsInjet[0].Py*kshortsInjet[0].Py + kshortsInjet[0].Pz*kshortsInjet[0].Pz )), (kshortsInjet[0].Pz/sqrt(kshortsInjet[0].Px*kshortsInjet[0].Px + kshortsInjet[0].Py*kshortsInjet[0].Py + kshortsInjet[0].Pz*kshortsInjet[0].Pz )) };
-	auto cross = cross3D(PVtoKS, momentum_unit);
-	auto d = sqrt(cross[0]*cross[0] + cross[1]*cross[1] + cross[2]*cross[2]);
-	kshortsInjet_d.push_back(d);
-      }
-      else {
-        kshortsInjet_pt.push_back(-99);
-        kshortsInjet_eta.push_back(-99);
-        kshortsInjet_phi.push_back(-99);
-        kshortsInjet_energy.push_back(-99);
-        kshortsInjet_R.push_back(-99);
-        kshortsInjet_outR.push_back(-99);
-	kshortsInjet_rho.push_back(-99);
-	kshortsInjet_d.push_back(-99);
-      }
-
-      if(nkshortsInjet.size() == 2){
-	if(abs(jet->PID) == 3){
-	  if(nkshortsInjet[1] > 0){
-	    x_KS_S = (kshortsInjet_pt[1]/jet_pt[1]);
-	    rho_KS_S = kshortsInjet_rho[1];
-	    d_KS_S = kshortsInjet_d[1];
-            if (x_KS_S < 0) x_KS_S = -1;
-            if (rho_KS_S < 0) rho_KS_S = -99;
-            if (d_KS_S < 0) d_KS_S = -99;
-	  }
-	  if(nkshortsInjet[0] > 0){
-	    x_KS_B = (kshortsInjet_pt[0]/jet_pt[0]);
-            rho_KS_B = kshortsInjet_rho[0];
-            d_KS_B = kshortsInjet_d[0];
-            if (x_KS_B < 0) x_KS_B = -1;
-            if (rho_KS_B < 0) rho_KS_B = -99;
-            if (d_KS_B < 0) d_KS_B = -99;
-	  } 
-	}
-        if(abs(jet->PID) == 5){
-          if(nkshortsInjet[1] > 0){
-            x_KS_B = (kshortsInjet_pt[1]/jet_pt[1]);
-            rho_KS_B = kshortsInjet_rho[1];
-            d_KS_B = kshortsInjet_d[1];
-            if (x_KS_B < 0) x_KS_B = -1;
-            if (rho_KS_B < 0) rho_KS_B = -99;
-            if (d_KS_B < 0) d_KS_B = -99;
-          }
-          if(nkshortsInjet[0] > 0){
-            x_KS_S = (kshortsInjet_pt[0]/jet_pt[0]);
-            rho_KS_S = kshortsInjet_rho[0];
-            d_KS_S = kshortsInjet_d[0];
-	    if (x_KS_S < 0) x_KS_S = -1;
-            if (rho_KS_S < 0) rho_KS_S = -99;
-            if (d_KS_S < 0) d_KS_S = -99;
-          }
-        }
-	if(x_KS_S > x_KS_B) x_KS = x_KS_S;
-	else x_KS = x_KS_B;
-        if(rho_KS_S > rho_KS_B) rho_KS = rho_KS_S;
-        else rho_KS = rho_KS_B;
-	if(d_KS_S > d_KS_B) d_KS = d_KS_S;
-	else d_KS = d_KS_B;
-      } 
-
-      // save highest pT lambda only
-      nlambdasInjet.push_back(lambdasInjet.size());
-      if (lambdasInjet.size() >0){
-        sort(lambdasInjet.begin(), lambdasInjet.end(), [](GenParticle a, GenParticle b){return a.PT > b.PT;});
-
-        lambdasInjet_pt.push_back(lambdasInjet[0].PT);
-        lambdasInjet_eta.push_back(lambdasInjet[0].Eta);
-        lambdasInjet_phi.push_back(lambdasInjet[0].Phi);
-        lambdasInjet_energy.push_back(lambdasInjet[0].E);
-
-        auto R = sqrt(pow(lambdasInjet[0].X,2)+pow(lambdasInjet[0].Y,2)+pow(lambdasInjet[0].Z,2));
-        lambdasInjet_R.push_back(R);
-
-        auto lambdaDau = (const GenParticle*) particles->At(lambdasInjet[0].D1);
-        auto outR = sqrt(pow(lambdaDau->X,2)+pow(lambdaDau->Y,2)+pow(lambdaDau->Z,2));
-        lambdasInjet_outR.push_back(outR);
-
-        auto rho = sqrt(lambdaDau->X*lambdaDau->X + lambdaDau->Y*lambdaDau->Y);
-        lambdasInjet_rho.push_back(rho);
-
-        std::vector<Double_t> PVtoKS = { lambdaDau->X, lambdaDau->Y, lambdaDau->Z };
-        std::vector<Double_t> momentum_unit = { (lambdasInjet[0].Px/sqrt(lambdasInjet[0].Px*lambdasInjet[0].Px + lambdasInjet[0].Py*lambdasInjet[0].Py + lambdasInjet[0].Pz*lambdasInjet[0].Pz )), (lambdasInjet[0].Py/sqrt(lambdasInjet[0].Px*lambdasInjet[0].Px + lambdasInjet[0].Py*lambdasInjet[0].Py + lambdasInjet[0].Pz*lambdasInjet[0].Pz )), (lambdasInjet[0].Pz/sqrt(lambdasInjet[0].Px*lambdasInjet[0].Px + lambdasInjet[0].Py*lambdasInjet[0].Py + lambdasInjet[0].Pz*lambdasInjet[0].Pz )) };
-        auto cross = cross3D(PVtoKS, momentum_unit);
-        auto d = sqrt(cross[0]*cross[0] + cross[1]*cross[1] + cross[2]*cross[2]);
-        lambdasInjet_d.push_back(d);
-
-      }
-      else {
-        lambdasInjet_pt.push_back(-99);
-        lambdasInjet_eta.push_back(-99);
-        lambdasInjet_phi.push_back(-99);
-        lambdasInjet_energy.push_back(-99);
-        lambdasInjet_R.push_back(-99);
-        lambdasInjet_outR.push_back(-99);
-        lambdasInjet_rho.push_back(-999);
-	lambdasInjet_d.push_back(-99);
-      }
-
-      if(nlambdasInjet.size() == 2){
-        if(abs(jet->PID) == 3){
-          if(nlambdasInjet[1] > 0){
-            x_lamb_S = (lambdasInjet_pt[1]/jet_pt[1]);
-	    rho_lamb_S = lambdasInjet_rho[1];
-            d_lamb_S = lambdasInjet_d[1];
-            if (x_lamb_S < 0) x_lamb_S = -1;
-            if (rho_lamb_S < 0) rho_lamb_S = -999;
-            if (d_lamb_S < 0) d_lamb_S = -99;
-          }
-          if(nlambdasInjet[0] > 0){
-            x_lamb_B = (lambdasInjet_pt[0]/jet_pt[0]);
-            rho_lamb_B = lambdasInjet_rho[0];
-            d_lamb_B = lambdasInjet_d[0];
-            if (x_lamb_B < 0) x_lamb_B = -1;
-            if (rho_lamb_B < 0) rho_lamb_B = -999;
-            if (d_lamb_B < 0) d_lamb_B = -99;
-          }
-        }
-        if(abs(jet->PID) == 5){
-          if(nlambdasInjet[1] > 0){
-            x_lamb_B = (lambdasInjet_pt[1]/jet_pt[1]);
-            rho_lamb_B = lambdasInjet_rho[1]; 
-            d_lamb_B = lambdasInjet_d[1];
-            if (x_lamb_B < 0) x_lamb_B = -1;
-            if (rho_lamb_B < 0) rho_lamb_B = -999;
-            if (d_lamb_B < 0) d_lamb_B = -99;
-          }
-          if(nlambdasInjet[0] > 0){
-            x_lamb_S = (lambdasInjet_pt[0]/jet_pt[0]);
-            rho_lamb_S = lambdasInjet_rho[0];
-            d_lamb_S = lambdasInjet_d[0];
-            if (x_lamb_S < 0) x_lamb_S = -1;
-            if (rho_lamb_S < 0) rho_lamb_S = -999;
-            if (d_lamb_S < 0) d_lamb_S = -99;
-          }
-        }
-        if(x_lamb_S > x_lamb_B) x_lamb = x_lamb_S;
-        else x_lamb = x_lamb_B;
-        if(rho_lamb_S > rho_lamb_B) rho_lamb = rho_lamb_S;
-        else rho_lamb = rho_lamb_B;
-	if(d_lamb_S > d_lamb_B) d_lamb = d_lamb_S;
-	else d_lamb = d_lamb_B;
-      }
-
-      // save highest pT lepton only
-      nleptonsInjet.push_back(leptonsInjet.size());
-      if (leptonsInjet.size() >0){
-        sort(leptonsInjet.begin(), leptonsInjet.end(), [](GenParticle a, GenParticle b){return a.PT > b.PT;});
-        leptonsInjet_pt.push_back(leptonsInjet[0].PT);
-        leptonsInjet_eta.push_back(leptonsInjet[0].Eta);
-        leptonsInjet_phi.push_back(leptonsInjet[0].Phi);
-        leptonsInjet_energy.push_back(leptonsInjet[0].E);
-        auto R = sqrt(pow(leptonsInjet[0].X,2)+pow(leptonsInjet[0].Y,2)+pow(leptonsInjet[0].Z,2));
-        leptonsInjet_R.push_back(R);
-      }
-      else {
-
-        leptonsInjet_pt.push_back(-99);
-        leptonsInjet_eta.push_back(-99);
-        leptonsInjet_phi.push_back(-99);
-        leptonsInjet_energy.push_back(-99);
-        leptonsInjet_R.push_back(-99);
-      }
-
-      std::vector<float> diHadron_mass;
-      if (hadronsInjet.size() >= 2){
-        //std::vector<float> diHadron_energy;
-        //std::vector<bool> diHadron_sameMother;
-        for (unsigned ih1 = 0; ih1 < hadronsInjet.size(); ++ih1){
-          auto hadron1 = hadronsInjet[ih1].P4();
-          for (unsigned ih2 = 0; ih2 < hadronsInjet.size(); ++ih2){
-            if (ih1 >= ih2) continue;
-            auto hadron2 = hadronsInjet[ih2].P4();
-
-            auto diHadron = hadron1+hadron2;
-            diHadron_mass.push_back(diHadron.M());
-	    if(abs(jet->PID) == 3) histo_dihadron_S->Fill(diHadron.M()*1000);
-            if(abs(jet->PID) == 5) histo_dihadron_B->Fill(diHadron.M()*1000);
-
-            //diHadron_energy.push_back(diHadron.E());
-            //diHadron_sameMother.push_back(hadronsInjet[ih1].M1 == hadronsInjet[ih2].M1 );
-          }
-        }
-      }
-      jet_diHadron_mass.push_back(diHadron_mass);
-
+    if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) {
+      if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), -99,                          true,  -99, false, false});
+      if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), -99,                     -99,                          true,  -99, false, false}); 
+    } else if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap ) {
+      if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[0]->PT, false, -99, false, false});
+      if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[0]->PT, false, -99, false, false}); 
+    } else if (jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) {
+      if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
+      if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
     }
 
-    jet1_diHadron_mass = jet_diHadron_mass[0];
-    jet2_diHadron_mass = jet_diHadron_mass[1];
+    //cout << "selected Jet idx : "                                     << setw(2)  << jIdx 
+    //     << " dR (tq1 = " << setw(2) << m_genQuark[0]->PID << " ) : " << setw(10) << jet_tlv.DeltaR(tq1_tlv) 
+    //     << " dR (tq2 = " << setw(2) << m_genQuark[1]->PID << " ) : " << setw(10) << jet_tlv.DeltaR(tq2_tlv) 
+    //     << " jet PID : "                                             << setw(2)  << selJet->Flavor 
+    //     << " Gen PT 1 : "                                            << setw(10) << m_genQuark[0]->PT 
+    //     << " Gen PT 2 : "                                            << setw(10) << m_genQuark[1]->PT 
+    //     << " Jet PT : "                                              << setw(10) << selJet->PT 
+    //     << " Jet PT / Gen1 PT : "                                    << setw(10) << selJet->PT/m_genQuark[0]->PT 
+    //     << " Jet PT / Gen2 PT : "                                    << setw(10) << selJet->PT/m_genQuark[1]->PT  
+    //     << " no. matched jet : "                                     << setw(2)  << m_matchedJet.size() 
+    //     << endl;
+  }
 
-    // accepted leptons
-    int selectedGenLep = 0;
-    if (abs(genLeps[0].tlv.Eta()) < 2.4 && genLeps[0].tlv.Pt() > 20.) selectedGenLep++;
-    if (abs(genLeps[1].tlv.Eta()) < 2.4 && genLeps[1].tlv.Pt() > 20.) selectedGenLep++;
+  sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.j->PT > b.j->PT); } ); // sort with pT ordering
+  if (m_matchedJet.size() > 0) m_matchedJet[0].hasHighestPt  = true;
+  if (m_matchedJet.size() > 1) m_matchedJet[1].hasHighestPt  = true;
+  sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl1 < b.drl1); } ); // sort with dR(lep, jet) ordering
+  m_matchedJet[0].hasClosestLep = true;
+  if (m_decayChannel == "dilepton" || m_decayChannel == "di") sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl2 < b.drl2); } ); // sort with dR(lep, jet) ordering
+  m_matchedJet[1].hasClosestLep = true;
 
-    if (selectedGenLep == 2){
-      gen_step0 = true;
-      auto genDilep = genLeps[0].tlv+genLeps[1].tlv;
-      if (genDilep.M() > 20. && genLeps[0].charge * genLeps[1].charge < 0 ) gen_step1 = true;
-    }
-
+  //for (auto i =0; i < m_matchedJet.size(); ++i) {
+  //  cout << " >>>>> matched Jet idx : " << setw(2)  << m_matchedJet[i].idx 
+  //       << " dR : "                    << setw(10) << m_matchedJet[i].dr 
+  //       << " pT : "                    << setw(10) << m_matchedJet[i].j->PT 
+  //       << " x : "                     << setw(10) << m_matchedJet[i].x 
+  //       << " jet PID : "               << setw(2)  << m_matchedJet[i].pdgid 
+  //       << " no. matched jet : "       << setw(2)  << m_matchedJet.size() << endl;
+  //}
 }
-std::vector<float> collectHadron(std::vector<GenParticle> hadronsInjet, bool motherCheck){
+
+void HadronReconstruction() {
+  //cout << " >>>>>>>>>>>>>>>>>>>>>>> HADRON RECO <<<<<<<<<<<<<<<<<<<<<<<< " << endl;
+  // Pick two charged hadron pairs
+  for (auto i = 0; i < tracks->GetEntries(); ++i) {
+    auto hadCand1 = (Track*) tracks->At(i);
+    if (hadCand1->Charge != 1) continue; // Only pick positive charge
+    if (abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) continue; // Exclude leptons
+    if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
+    for (auto j = 0; j < tracks->GetEntries(); ++j) {
+      auto hadCand2 = (Track*) tracks->At(j);
+      if (hadCand2->Charge != -1) continue; // Only pick negative charge
+      if (abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) continue; // Exclude leptons
+      if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
+
+      TLorentzVector dauCand1_pion_tlv;   
+      TLorentzVector dauCand1_proton_tlv; 
+      TLorentzVector dauCand2_pion_tlv;   
+      TLorentzVector dauCand2_proton_tlv; 
+
+      dauCand1_pion_tlv.SetPtEtaPhiM(  hadCand1->PT, hadCand1->Eta, hadCand1->Phi, pionMass_);
+      dauCand1_proton_tlv.SetPtEtaPhiM(hadCand1->PT, hadCand1->Eta, hadCand1->Phi, protonMass_);
+      dauCand2_pion_tlv.SetPtEtaPhiM(  hadCand2->PT, hadCand2->Eta, hadCand2->Phi, pionMass_);
+      dauCand2_proton_tlv.SetPtEtaPhiM(hadCand2->PT, hadCand2->Eta, hadCand2->Phi, protonMass_);
+
+      TLorentzVector hadCand_pion_pion_tlv    = dauCand1_pion_tlv   + dauCand2_pion_tlv;
+      TLorentzVector hadCand_pion_proton_tlv  = dauCand1_pion_tlv   + dauCand2_proton_tlv;
+      TLorentzVector hadCand_proton_pion_tlv  = dauCand1_proton_tlv + dauCand2_pion_tlv;
+      
+      if ((fabs(hadCand_pion_pion_tlv.M() - ksMass_)/ksMass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*211))  { 
+        /*
+        cout << "Pairing : "
+             << " Mass diff "       << setw(14) << fabs(hadCand_pion_pion_tlv.M() - ksMass_)
+             << " Reco Mass : "     << setw(8)  << hadCand_pion_pion_tlv.M()
+             << " GEN Mass : "      << setw(8)  << ksMass_ 
+             << " GEN PDG : "       << setw(5)  << ksPdgId_ 
+             << " dau1 PID : "      << setw(5)  << hadCand1->PID
+             << " dau2 PID : "      << setw(5)  << hadCand2->PID
+             << " GEN idx : "       << setw(5)  << "-1"
+             << " dau1 idx : "      << setw(5)  << i
+             << " dau2 idx : "      << setw(5)  << j
+             << endl;
+        */
+        m_recoHad.push_back({hadCand_pion_pion_tlv, dauCand1_pion_tlv, dauCand2_pion_tlv, -1, i, j, ksPdgId_, pionPdgId_, (-1)*pionPdgId_, -99, false, false});
+      }
+      if ((fabs(hadCand_pion_proton_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*2212)) {
+        /*
+        cout << "Pairing : "
+             << " Mass diff "      << setw(14) << fabs(hadCand_pion_proton_tlv.M() - lambda0Mass_)
+             << " Reco Mass : "    << setw(8)  << hadCand_pion_proton_tlv.M()
+             << " GEN Mass : "     << setw(8)  << lambda0Mass_ 
+             << " GEN PDG : "      << setw(5)  << lambda0PdgId_ 
+             << " dau1 PID : "     << setw(5)  << hadCand1->PID
+             << " dau2 PID : "     << setw(5)  << hadCand2->PID
+             << " GEN idx : "      << setw(5)  << "-1"
+             << " dau1 idx : "     << setw(5)  << i
+             << " dau2 idx : "     << setw(5)  << j
+             << endl;
+        */
+        m_recoHad.push_back({hadCand_pion_proton_tlv, dauCand1_pion_tlv, dauCand2_proton_tlv, -1, i, j, lambda0PdgId_, pionPdgId_, (-1)*protonPdgId_, -99, false, false});
+      }
+      if ((fabs(hadCand_proton_pion_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*2212)) {
+        /*
+        cout << "Pairing : "
+             << " Mass diff "      << setw(14) << fabs(hadCand_proton_pion_tlv.M() - lambda0Mass_)
+             << " Reco Mass : "    << setw(8)  << hadCand_proton_pion_tlv.M()
+             << " GEN Mass : "     << setw(8)  << lambda0Mass_ 
+             << " GEN PDG : "      << setw(5)  << lambda0PdgId_ 
+             << " dau1 PID : "     << setw(5)  << hadCand1->PID
+             << " dau2 PID : "     << setw(5)  << hadCand2->PID
+             << " GEN idx : "      << setw(5)  << "-1"
+             << " dau1 idx : "     << setw(5)  << i
+             << " dau2 idx : "     << setw(5)  << j
+             << endl;
+        */
+        m_recoHad.push_back({hadCand_proton_pion_tlv, dauCand1_proton_tlv, dauCand2_pion_tlv, -1, i, j, lambda0PdgId_, protonPdgId_, (-1)*pionPdgId_, -99, false, false});
+      }
+    }
+  }
+}
+
+void HadronPreselection(std::vector<RecoHad> recoHad) {
+  for (auto i=0; i < recoHad.size(); ++i) {
+    if (recoHad[i].tlv.Eta() > 2.5) continue;
+    else recoHad[i].isSelected = true;
+  }
+}
+
+void FindTruthMatchedHadron() {
+  int n = 0;
+  for (int i = 0; i < particles->GetEntries(); ++i){
+    bool  isFromTop = false;
+    bool  isFromW   = false;
+    int   isFrom    = -99;
+    float x         = -99;
+    auto p = (const GenParticle*) particles->At(i);
+    if (p->PID != 310 && p->PID != 3122) continue;
+    if (p->D1  == -1  || p->D2  == -1) continue;
+    auto d1 = (const GenParticle*) particles->At(p->D1);
+    auto d2 = (const GenParticle*) particles->At(p->D2);
+    if ( p->PID == 310  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue;
+    if ( p->PID == 3122 ) {
+      if      ( (abs(d1->PID) != 211  && abs(d2->PID) == 2212) || (abs(d1->PID) == 211  && abs(d2->PID) != 2212) ) continue;
+      else if ( (abs(d1->PID) != 2212 && abs(d2->PID) == 211 ) || (abs(d1->PID) == 2212 && abs(d2->PID) != 211 ) ) continue;
+    }
+    auto motherList = getMlist(particles, p);
+    for (auto j=0; j < motherList.size()-1; ++j) {
+      //if ( j == 0) {
+      //cout << "[ " << setw(3) << j   << " / " << setw(3) << motherList.size() 
+      //     << " ] th starting point (Index)  ===> "   << setw(5) << p->PID                << " ( " << setw(4) << i                   << " ) " 
+      //     << " dau1 (Index): "                       << setw(5) << d1->PID               << " ( " << setw(4) << p->D1               << " ) " 
+      //     << " dau2 (Index): "                       << setw(5) << d2->PID               << " ( " << setw(4) << p->D2               << " ) " 
+      //     << endl;
+      //}
+      //cout << "[ " << setw(3) << j+1 << " / " << setw(3) << motherList.size() 
+      //     << " ] th mother particle (Index) ===> "   << setw(5) << motherList[j]->PID    << " ( " << setw(4) << motherList[j+1]->D1 << " ) "
+      //     << " status : "                            << setw(5) << motherList[j]->Status
+      //     << endl;
+      if ( abs(motherList[j]->PID) == 24 && !isFromW) {
+        isFromW = true;
+        isFrom  = motherList[j-1]->PID;
+        x       = p->PT/motherList[j-1]->PT;
+      }
+      if ( abs(motherList[j]->PID) == 6 && motherList[j]->Status == 62 ) {
+        isFromTop = true; 
+        if (isFromW == false) { isFrom = motherList[j-1]->PID; x = p->PT/motherList[j-1]->PT; }
+        break;
+      }
+    }
+    m_genHadron[i] = {p->P4(), d1->P4(), d2->P4(), x, i, p->PID, p->D1, d1->PID, p->D2, d2->PID, isFrom, isFromTop, isFromW};
+  }
+}
+
+int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
+  int hIdx = -1;
+  float maxBDTScore = -1;
+  float highestPt   = -1;
+  float lowestDot   = 99999999.;
+  float closestDr   = -1;
+  for (auto i=0; i<m_recoHad.size(); ++i) {
+    auto had_tlv = m_recoHad[i].tlv;
+    auto dR      = had_tlv.DeltaR(jet_tlv);
+    if (abs(m_recoHad[i].pdgid) != 310 && abs(m_recoHad[i].pdgid) != 3122) continue;
+    if (m_hadPreCut && !m_recoHad[i].isSelected) continue;
+    if (dR > cut_JetConeSizeOverlap) continue;
+
+    if (method == "BDT") {
+      cout << "BDT ==> Work in progress" << endl;
+      // auto hadBDTScore = m_hadReader->EvaluateMVA("KS_BDT");
+      // if (hadBDTScore > maxBDTScore) {
+      //   maxBDTScore = hadBDTScore;
+      //   hIdx = i;
+      // }
+    }
+    if (method == "pT" || method == "pt") {
+      auto hadronPt = had_tlv.Pt();
+      if (hadronPt > highestPt) {
+        highestPt = hadronPt;
+        hIdx = i;
+      }
+    }
+    if (method == "dot") {
+      auto dotProduct = had_tlv.Dot(jet_tlv);
+      if (dotProduct < lowestDot) {
+        lowestDot = dotProduct;
+        hIdx = i;
+      }
+    }
+    if (method == "dr" || method == "dR") {
+      if (dR < closestDr) {
+        closestDr = dR;
+        hIdx = i;
+      }
+    }
+
+  }
+  if (hIdx != -1) m_recoHad[hIdx].isJetMatched = true;
+  return hIdx;
+} 
+
+void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
+  for ( unsigned i = 0; i < jets->GetEntries(); ++i){
+    ResetJetValues();
+    auto jet     = (Jet*) jets->At(i);
+    auto jet_tlv = jet->P4();
+
+    if (m_selectedJet[i] != 0) { 
+      b_isSelectedJet = true;
+    }
+    for ( auto j = 0; j < m_matchedJet.size(); ++j ) {
+      if (m_matchedJet[j].idx == i) {
+        b_isFrom        = m_matchedJet[j].gen_pdgid;
+        b_hasHighestPt  = m_matchedJet[j].hasHighestPt;
+        b_hasClosestLep = m_matchedJet[j].hasClosestLep;
+      }
+      //if (m_genQuark.size() > 1) cout << " Gen Quark : " << setw(4) << m_genQuark[0]->PID << " | " << setw(4) << m_genQuark[1]->PID << " isFrom ====> : " << setw(4) << m_matchedJet[j].gen_pdgid << " /// " << setw(4) << m_matchedJet[j].pdgid << endl;
+      //else cout << "Less than 2 gen quark" << endl;
+    }
+    auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod);
+    SetJetValues(jet);
+    if (hIdx != -1) {
+      SetHadValues(jettr, hIdx, jet_tlv);
+    }
+    jettr->Fill();
+  }
+}
+
+void FillHadTree(TTree* hadtr) {
+  for ( unsigned i = 0; i < m_recoHad.size(); ++i){
+    ResetHadValues();
+    SetHadValues(hadtr, i);
+    hadtr->Fill();
+  }
+}
+
+void SetJetValues(Jet* jet) {
+  b_pt               = jet->PT;
+  b_eta              = jet->Eta;
+  b_phi              = jet->Phi;
+  b_mass             = jet->Mass;
+  b_radiusInEta      = jet->DeltaEta;
+  b_radiusInPhi      = jet->DeltaPhi;
+  b_ptD              = jet->PTD;
+  b_cMult            = jet->NCharged;
+  b_nMult            = jet->NNeutrals;
+  b_pdgId            = jet->Flavor;
+  b_flavorAlgo       = jet->FlavorAlgo;
+  b_flavorPhys       = jet->FlavorPhys;
+  b_bTag             = jet->BTag;
+  b_bTagAlgo         = jet->BTagAlgo;
+  b_bTagPhys         = jet->BTagPhys;
+  b_tauTag           = jet->TauTag;
+  b_tauWeight        = jet->TauWeight;
+}
+
+void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
+  if (string(tr->GetName()).find("jet") != string::npos) {
+    b_had_x = m_recoHad[i].tlv.Pt()/jet_tlv.Pt();
+    b_had_dr           = m_recoHad[i].tlv.DeltaR(jet_tlv);
+  }
+  b_had_pt           = m_recoHad[i].tlv.Pt();
+  b_had_eta          = m_recoHad[i].tlv.Eta();
+  b_had_phi          = m_recoHad[i].tlv.Phi();
+  b_had_mass         = m_recoHad[i].tlv.M();
+  b_had_pdgId        = m_recoHad[i].pdgid;
+  b_had_isFrom       = m_recoHad[i].isFrom;
+  b_had_isSelected   = m_recoHad[i].isSelected;
+  b_had_isJetMatched = m_recoHad[i].isJetMatched;
+  b_dau1_pdgId       = m_recoHad[i].dau1_pdgid;
+  b_dau1_pt          = m_recoHad[i].dau1_tlv.Pt();
+  b_dau1_eta         = m_recoHad[i].dau1_tlv.Eta();
+  b_dau1_phi         = m_recoHad[i].dau1_tlv.Phi();
+  b_dau1_mass        = m_recoHad[i].dau1_tlv.M();
+  b_dau2_pdgId       = m_recoHad[i].dau2_pdgid;
+  b_dau2_pt          = m_recoHad[i].dau2_tlv.Pt();
+  b_dau2_eta         = m_recoHad[i].dau2_tlv.Eta();
+  b_dau2_phi         = m_recoHad[i].dau2_tlv.Phi();
+  b_dau2_mass        = m_recoHad[i].dau2_tlv.M();
+  auto dau1          = (Track*) tracks->At(m_recoHad[i].dau1_idx);
+  auto dau2          = (Track*) tracks->At(m_recoHad[i].dau2_idx);
+  b_dau1_D0          = dau1->D0;
+  b_dau1_DZ          = dau1->DZ;
+  b_dau1_ctgTheta    = dau1->CtgTheta;
+  b_dau1_ptErr       = dau1->ErrorPT;
+  b_dau1_phiErr      = dau1->ErrorPhi;
+  b_dau1_D0Err       = dau1->ErrorD0;
+  b_dau1_DZErr       = dau1->ErrorDZ;
+  b_dau1_ctgThetaErr = dau1->ErrorCtgTheta;
+  b_dau1_D0Sig       = dau1->D0/dau1->ErrorD0;
+  b_dau1_DZSig       = dau1->DZ/dau1->ErrorDZ;
+  b_dau2_D0          = dau2->D0;
+  b_dau2_DZ          = dau2->DZ;
+  b_dau2_ctgTheta    = dau2->CtgTheta;
+  b_dau2_ptErr       = dau2->ErrorPT;
+  b_dau2_phiErr      = dau2->ErrorPhi;
+  b_dau2_D0Err       = dau2->ErrorD0;
+  b_dau2_DZErr       = dau2->ErrorDZ;
+  b_dau2_ctgThetaErr = dau2->ErrorCtgTheta;
+  b_dau2_D0Sig       = dau2->D0/dau2->ErrorD0;
+  b_dau2_DZSig       = dau2->DZ/dau2->ErrorDZ;
+  if (m_genHadron.size() != 0) {
+    auto genDau1     = (GenParticle*) dau1->Particle.GetObject();
+    auto genDau2     = (GenParticle*) dau2->Particle.GetObject();
+    //cout << " genHad[genDau1->M1].idx : "   << setw(5) << m_genHadron[genDau1->M1].idx 
+    //     << " genDau1->M1 : "               << setw(5) << genDau1->M1
+    //     << " genHad[genDau2->M1].idx : "   << setw(5) << m_genHadron[genDau2->M1].idx 
+    //     << " genDau2->M1 : "               << setw(5) << genDau2->M1
+    //     << " genHad[genDau1->M1].pdgid : " << setw(5) << m_genHadron[genDau1->M1].pdgid
+    //     << " genDau1->pdgid : "            << setw(5) << genDau1->PID
+    //     << " genHad[genDau2->M1].pdgid : " << setw(5) << m_genHadron[genDau2->M1].pdgid
+    //     << " genDau2->pdgid : "            << setw(5) << genDau2->PID
+    //     << endl;
+    if ((genDau1->M1 == genDau2->M1) && m_genHadron[genDau1->M1].pdgid != 0) {
+      auto genp = (const GenParticle*) particles->At(genDau1->M1);
+      b_had_nMatched      = 2;
+      b_genHad_x          = m_genHadron[genDau1->M1].x;
+      b_genHad_pdgId      = m_genHadron[genDau1->M1].pdgid;
+      b_genHad_pt         = m_genHadron[genDau1->M1].tlv.Pt();
+      b_genHad_eta        = m_genHadron[genDau1->M1].tlv.Eta();
+      b_genHad_phi        = m_genHadron[genDau1->M1].tlv.Phi();
+      b_genHad_mass       = m_genHadron[genDau1->M1].tlv.M();
+      b_genHad_isFrom     = m_genHadron[genDau1->M1].isFrom;
+      b_genHad_isFromTop  = m_genHadron[genDau1->M1].isFromTop;
+      b_genHad_isFromW    = m_genHadron[genDau1->M1].isFromW;
+      b_genHad_isPU       = genp->IsPU;
+      b_genHad_D0         = genp->D0;
+      b_genHad_DZ         = genp->DZ;
+      b_genHad_ctgTheta   = genp->CtgTheta;
+      b_genDau1_pdgId     = m_genHadron[genDau1->M1].dau1_pdgid;
+      b_genDau1_pt        = m_genHadron[genDau1->M1].dau1_tlv.Pt();
+      b_genDau1_eta       = m_genHadron[genDau1->M1].dau1_tlv.Eta();
+      b_genDau1_phi       = m_genHadron[genDau1->M1].dau1_tlv.Phi();
+      b_genDau1_mass      = m_genHadron[genDau1->M1].dau1_tlv.M();
+      b_genDau1_D0        = genDau1->D0;
+      b_genDau1_DZ        = genDau1->DZ;
+      b_genDau1_ctgTheta  = genDau1->CtgTheta;
+      b_genDau2_pdgId     = m_genHadron[genDau1->M1].dau2_pdgid;
+      b_genDau2_pt        = m_genHadron[genDau1->M1].dau2_tlv.Pt();
+      b_genDau2_eta       = m_genHadron[genDau1->M1].dau2_tlv.Eta();
+      b_genDau2_phi       = m_genHadron[genDau1->M1].dau2_tlv.Phi();
+      b_genDau2_mass      = m_genHadron[genDau1->M1].dau2_tlv.M();
+      b_genDau2_D0        = genDau2->D0;
+      b_genDau2_DZ        = genDau2->DZ;
+      b_genDau2_ctgTheta  = genDau2->CtgTheta;
+    } else if ( (m_genHadron[genDau1->M1].idx == genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) || (m_genHadron[genDau1->M1].idx == genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) ) {
+      b_had_nMatched = 1;
+    } else if ( (m_genHadron[genDau1->M1].idx != genDau1->M1 && m_genHadron[genDau2->M1].idx != genDau2->M1) ) {
+      b_had_nMatched = 0;
+    }
+  }
+}
+
+
+std::vector<float> collectHadron(std::vector<GenParticle> hadInJet, bool motherCheck){
 }
