@@ -14,7 +14,8 @@ set ExecutionPath {
   MuonMomentumSmearing
 
   TrackMerger
- 
+  TrackSmearing 
+
   ECal
   HCal
  
@@ -68,6 +69,7 @@ module ParticlePropagator ParticlePropagator {
   set ChargedHadronOutputArray chargedHadrons
   set ElectronOutputArray electrons
   set MuonOutputArray muons
+  #set V0OutputArray v0
 
   # radius of the magnetic field coverage, in m
   set Radius 1.29
@@ -77,6 +79,20 @@ module ParticlePropagator ParticlePropagator {
   # magnetic field
   set Bz 3.8
 }
+
+#################################
+# Decay Filter
+#################################
+
+#module DecayFilter DecayFilter {
+#  set InputArray FastJetFinder/jets
+#  #set InputArray TrackSmearing/tracks
+#  #add InputArray ParticlePropagtor/stableParticles
+#  #add InputArray ParticlePropagator/chargedHadrons
+#
+#  set OutputArray tracks
+#
+#}
 
 ####################################
 # Charged hadron tracking efficiency
@@ -152,9 +168,15 @@ module MomentumSmearing ChargedHadronMomentumSmearing {
 
   # resolution formula for charged hadrons
   # based on arXiv:1405.6569
-  set ResolutionFormula {                  (abs(eta) <= 0.5) * (pt > 0.1) * sqrt(0.06^2 + pt^2*1.3e-3^2) +
-                         (abs(eta) > 0.5 && abs(eta) <= 1.5) * (pt > 0.1) * sqrt(0.10^2 + pt^2*1.7e-3^2) +
-                         (abs(eta) > 1.5 && abs(eta) <= 2.5) * (pt > 0.1) * sqrt(0.25^2 + pt^2*3.1e-3^2)}
+  #set ResolutionFormula {                  (abs(eta) <= 0.5) * (pt > 0.1) * sqrt(0.06^2 + pt^2*1.3e-3^2) +
+  #                       (abs(eta) > 0.5 && abs(eta) <= 1.5) * (pt > 0.1) * sqrt(0.10^2 + pt^2*1.7e-3^2) +
+  #                       (abs(eta) > 1.5 && abs(eta) <= 2.5) * (pt > 0.1) * sqrt(0.25^2 + pt^2*3.1e-3^2)}
+ 
+  # Rough matching to 1405.6569 fig. 15
+  set ResolutionFormula {                  (abs(eta) <= 0.9) * (pt > 0.1) * (0.1606)*sqrt(0.06^2 + pt^2*1.3e-3^2) +
+                         (abs(eta) > 0.9 && abs(eta) <= 1.4) * (pt > 0.1) * (0.1622)*sqrt(0.10^2 + pt^2*1.7e-3^2) +
+                         (abs(eta) > 1.4 && abs(eta) <= 2.5) * (pt > 0.1) * (0.1758)*sqrt(0.25^2 + pt^2*3.1e-3^2)}
+
 }
 
 ###################################
@@ -168,7 +190,7 @@ module MomentumSmearing ElectronMomentumSmearing {
   # set ResolutionFormula {resolution formula as a function of eta and energy}
 
   # resolution formula for electrons
-  # based on arXiv:1405.6569
+  # based on arXiv:1502.02701
   set ResolutionFormula {                  (abs(eta) <= 0.5) * (pt > 0.1) * sqrt(0.03^2 + pt^2*1.3e-3^2) +
                          (abs(eta) > 0.5 && abs(eta) <= 1.5) * (pt > 0.1) * sqrt(0.05^2 + pt^2*1.7e-3^2) +
                          (abs(eta) > 1.5 && abs(eta) <= 2.5) * (pt > 0.1) * sqrt(0.15^2 + pt^2*3.1e-3^2)}
@@ -202,6 +224,22 @@ module Merger TrackMerger {
   set OutputArray tracks
 }
 
+################################                                                                    
+## Track impact parameter smearing                                                                   
+#################################                                                                    
+
+module TrackSmearing TrackSmearing {
+set InputArray TrackMerger/tracks
+#  set BeamSpotInputArray BeamSpotFilter/beamSpotParticle
+set OutputArray tracks
+#  set ApplyToPileUp true
+
+# magnetic field
+set Bz 3.8
+
+source trackResolutionCMS.tcl
+}
+
 
 
 #############
@@ -210,7 +248,7 @@ module Merger TrackMerger {
 
 module SimpleCalorimeter ECal {
   set ParticleInputArray ParticlePropagator/stableParticles
-  set TrackInputArray TrackMerger/tracks
+  set TrackInputArray TrackSmearing/tracks
 
   set TowerOutputArray ecalTowers
   set EFlowTrackOutputArray eflowTracks
@@ -513,7 +551,7 @@ module Isolation ElectronIsolation {
 
   set OutputArray electrons
 
-  set DeltaRMax 0.5
+  set DeltaRMax 0.3
 
   set PTMin 0.5
 
@@ -547,7 +585,7 @@ module Isolation MuonIsolation {
 
   set OutputArray muons
 
-  set DeltaRMax 0.5
+  set DeltaRMax 0.4
 
   set PTMin 0.5
 
@@ -610,7 +648,7 @@ module FastJetFinder GenJetFinder {
 
   # algorithm: 1 CDFJetClu, 2 MidPoint, 3 SIScone, 4 kt, 5 Cambridge/Aachen, 6 antikt
   set JetAlgorithm 6
-  set ParameterR 0.5
+  set ParameterR 0.4
 
   set JetPTMin 20.0
 }
@@ -639,7 +677,7 @@ module FastJetFinder FastJetFinder {
 
   # algorithm: 1 CDFJetClu, 2 MidPoint, 3 SIScone, 4 kt, 5 Cambridge/Aachen, 6 antikt
   set JetAlgorithm 6
-  set ParameterR 0.5
+  set ParameterR 0.4
 
   set JetPTMin 20.0
 }
@@ -704,7 +742,7 @@ module JetFlavorAssociation JetFlavorAssociation {
   set ParticleLHEFInputArray Delphes/allParticlesLHEF
   set JetInputArray JetEnergyScale/jets
 
-  set DeltaR 0.5
+  set DeltaR 0.4
   set PartonPTMin 1.0
   set PartonEtaMax 2.5
 
@@ -783,7 +821,7 @@ module TreeWriter TreeWriter {
 # add Branch InputArray BranchName BranchClass
   add Branch Delphes/allParticles Particle GenParticle
 
-  add Branch TrackMerger/tracks Track Track
+  add Branch TrackSmearing/tracks Track Track
   add Branch Calorimeter/towers Tower Tower
 
   add Branch HCal/eflowTracks EFlowTrack Track
