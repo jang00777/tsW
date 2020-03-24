@@ -62,58 +62,29 @@ int main(int argc, char* argv[])
     if (iev%1000 == 0 ) cout << "event check    iev    ----> " << iev << endl;
     inTree->GetEntry(iev);
     ResetBranch();
-    //cout << "chk 1 " << endl;
     EventSelection(cutflow, decay_ch);
-    //cout << "chk 2 " << endl;
     if (b_step < 4) continue;
     //cout << " ============================================ " << endl;
     MatchingGenJet();
-    //cout << "chk 3 " << endl;
     HadronReconstruction();
-    //cout << "chk 4 " << endl;
     HadronPreselection(m_recoHad);
-    //cout << "chk 5 " << endl;
     FindTruthMatchedHadron();
-    //cout << "chk 6 " << endl;
     FillJetTree(jets, jettr, "pT");
-    //cout << "chk 7 " << endl;
     FillHadTree(hadtr);
-    //cout << "chk 8 " << endl;
     //cout << " ============================================ " << endl;
-    /*
-    // pion track test
-    for (unsigned i = 0; i < tracks->GetEntries(); ++ i){
-      auto track = (Track*) tracks->At(i);
-      if (abs(track->PID) == 321){
-        auto genTrack = (GenParticle*) track->Particle.GetObject();
-        auto genTrack_mom = (const GenParticle*) particles->At(genTrack->M1);
-        cout << genTrack_mom->PID << endl;
-        float pionR = sqrt(pow(track->X,2)+pow(track->Y,2)+pow(track->Z,2));
-        float pionRd = sqrt(pow(track->Xd,2)+pow(track->Yd,2)+pow(track->Zd,2));
-        float pionROuter = sqrt(pow(track->XOuter,2)+pow(track->YOuter,2)+pow(track->ZOuter,2));
-      }
-    }
-    */
     outtr->Fill();
-    //cout << "chk 9 " << endl;
   }
   inFile->Close();
-  //cout << "chk 10 " << endl;
   //outtr->Write();
   cutflow->Write();
-  //cout << "chk 11 " << endl;
 
   out->Write();
-  //cout << "chk 12 " << endl;
   out->Close();
-  //cout << "chk 13 " << endl;
   //check cpu time (end)
   std::clock_t c_end = std::clock();
   long double time_elapsed_ms = 1000.0 * (c_end - c_start) / CLOCKS_PER_SEC;
   cout << "CPU time used: " << time_elapsed_ms << " ms\n";
   cout << "CPU time used(sec): " << time_elapsed_ms/1000 << " sec\n";
-
-  //cout << "chk 14 " << endl;
   return 0;
 }
 
@@ -318,7 +289,7 @@ void MatchingGenJet() {
   if ( m_genQuark.size() < 2 ) {
     cout << "No two quarks from top quarks ... skip this event" << endl; 
     return;
-  } else if ( (m_genLepton.size() == 1 && m_decayChannel == "di") || (m_genLepton.size() == 0 && m_decayChannel == "semi")) {
+  } else if ( (m_genLepton.size() != 2 && m_decayChannel == "di") || (m_genLepton.size() != 1 && m_decayChannel == "semi")) {
     cout << "No two reco leptons in dileptonic channel or no reco lepton in semileptonic channel ===> Maybe because a case that W boson decay into tau / neutrino isn't included" << endl;
     return;
   }
@@ -372,14 +343,15 @@ void MatchingGenJet() {
     //     << endl;
   }
 
-  sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.j->PT > b.j->PT); } ); // sort with pT ordering
-  if (m_matchedJet.size() > 0) m_matchedJet[0].hasHighestPt  = true;
-  if (m_matchedJet.size() > 1) m_matchedJet[1].hasHighestPt  = true;
-  sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl1 < b.drl1); } ); // sort with dR(lep, jet) ordering
-  m_matchedJet[0].hasClosestLep = true;
-  if (m_decayChannel == "dilepton" || m_decayChannel == "di") sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl2 < b.drl2); } ); // sort with dR(lep, jet) ordering
-  m_matchedJet[1].hasClosestLep = true;
-
+  if (m_matchedJet.size() != 0) {
+    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.j->PT > b.j->PT); } ); // sort with pT ordering
+    if (m_matchedJet.size() > 0) m_matchedJet[0].hasHighestPt  = true;
+    if (m_matchedJet.size() > 1) m_matchedJet[1].hasHighestPt  = true;
+    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl1 < b.drl1); } ); // sort with dR(lep, jet) ordering
+    m_matchedJet[0].hasClosestLep = true;
+    if (m_decayChannel == "dilepton" || m_decayChannel == "di") sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl2 < b.drl2); } ); // sort with dR(lep, jet) ordering
+    m_matchedJet[1].hasClosestLep = true;
+  }
   //for (auto i =0; i < m_matchedJet.size(); ++i) {
   //  cout << " >>>>> matched Jet idx : " << setw(2)  << m_matchedJet[i].idx 
   //       << " dR : "                    << setw(10) << m_matchedJet[i].dr 
@@ -397,12 +369,12 @@ void HadronReconstruction() {
     auto hadCand1 = (Track*) tracks->At(i);
     if (hadCand1->Charge != 1) continue; // Only pick positive charge
     if (abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) continue; // Exclude leptons
-    if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
+    //if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
     for (auto j = 0; j < tracks->GetEntries(); ++j) {
       auto hadCand2 = (Track*) tracks->At(j);
       if (hadCand2->Charge != -1) continue; // Only pick negative charge
       if (abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) continue; // Exclude leptons
-      if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
+      //if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
 
       TLorentzVector dauCand1_pion_tlv;   
       TLorentzVector dauCand1_proton_tlv; 
@@ -491,9 +463,11 @@ void FindTruthMatchedHadron() {
     auto d2 = (const GenParticle*) particles->At(p->D2);
     if ( p->PID == 310  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue;
     if ( p->PID == 3122 ) {
-      if      ( (abs(d1->PID) != 211  && abs(d2->PID) == 2212) || (abs(d1->PID) == 211  && abs(d2->PID) != 2212) ) continue;
-      else if ( (abs(d1->PID) != 2212 && abs(d2->PID) == 211 ) || (abs(d1->PID) == 2212 && abs(d2->PID) != 211 ) ) continue;
+      if      ( (abs(d1->PID) != 211  && abs(d1->PID) != 2212) || (abs(d2->PID) != 211  && abs(d2->PID) != 2212) ) continue;
+      else if ( abs(d1->PID) == abs(d2->PID) ) continue;
     }
+    if (d1->PID*d2->PID > 0) continue; 
+
     auto motherList = getMlist(particles, p);
     for (auto j=0; j < motherList.size()-1; ++j) {
       //if ( j == 0) {
@@ -519,6 +493,8 @@ void FindTruthMatchedHadron() {
       }
     }
     m_genHadron[i] = {p->P4(), d1->P4(), d2->P4(), x, i, p->PID, p->D1, d1->PID, p->D2, d2->PID, isFrom, isFromTop, isFromW};
+    //cout << " gen pdgId : " << setw(5) << p->PID << " dau 1 index : " << setw(5) << p->D1 << " dau 2 index : " << setw(5) << p->D2 << " dau 1 pdgId : " << setw(5) << d1->PID << " dau 2 pdgId : " << setw(5) << d2->PID << " isFromTop : " << setw(5) << isFromTop << " isFromW : " << setw(5) << isFromW << endl;
+
   }
 }
 
