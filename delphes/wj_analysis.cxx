@@ -75,9 +75,11 @@ int main(int argc, char* argv[])
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
     outtr->Fill();
+    //cout << "chk 9 " << endl;
   }
   inFile->Close();
   cutflow->Write();
+  //cout << "chk 11 " << endl;
 
   out->Write();
   out->Close();
