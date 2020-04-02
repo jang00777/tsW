@@ -107,22 +107,6 @@ int b_recoLep1_pdgId, b_recoLep2_pdgId;
 float b_dilepton_mass;
 int   b_dilepton_ch, b_channel, b_step;
 
-float b_Ks_x,   b_Ks_x_S,   b_Ks_x_B,   b_Ks_rho,   b_Ks_rho_S,   b_Ks_rho_B,   b_Ks_d,   b_Ks_d_S,   b_Ks_d_B;
-float b_lamb_x, b_lamb_x_S, b_lamb_x_B, b_lamb_rho, b_lamb_rho_S, b_lamb_rho_B, b_lamb_d, b_lamb_d_S, b_lamb_d_B;
-float b_significance_S, b_significance_B;
-
-bool b_gen_step0, b_gen_step1;
-std::vector<float> b_jet_pt, b_jet_eta, b_jet_phi, b_jet_energy;
-std::vector<int>   b_jet_pdgId;
-
-std::vector<float> b_KsInJet_pt,   b_KsInJet_eta,   b_KsInJet_phi,   b_KsInJet_energy,   b_KsInJet_R,   b_KsInJet_outR,   b_KsInJet_rho, b_KsInJet_d;
-std::vector<float> b_lambInJet_pt, b_lambInJet_eta, b_lambInJet_phi, b_lambInJet_energy, b_lambInJet_R, b_lambInJet_outR, b_lambInJet_rho, b_lambInJet_d;
-std::vector<float> b_lepInJet_pt,  b_lepInJet_eta,  b_lepInJet_phi,  b_lepInJet_energy,  b_lepInJet_R,  b_lepInJet_outR;
-
-std::vector<int> b_nKsInJet, b_nLambInJet, b_nLepInJet;
-
-std::vector<float> b_jet1_diHadron_mass, b_jet2_diHadron_mass;
-
 // FillJetTree() and FillHadTree()
 bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep;
 float b_pt,               b_eta,              b_phi,              b_mass,         b_ptD,              b_radiusInEta, b_radiusInPhi;
@@ -206,13 +190,13 @@ float cut_Dilep_M, cut_MET_Pt;
 int   cut_nJet, cut_nBJet;
 
 // hadron reconstruction cut
-// Most of them aren't used here (just copy & paste from nano_cff)
+// Most of them aren't used here (most of them were just copied & pasted from nano_cff) ==> can use tkPTCut_, tkIPSigXYCut_
   // Track normalized Chi2 <
 float tkChi2Cut_      = 100.;
   // Number of valid hits on track >=
 float tkNHitsCut_     = 0.;
   // Pt of track >
-float tkPtCut_        = 0.;
+float tkPTCut_        = 0.95;
   // Track impact parameter significance >
 float tkIPSigXYCut_   = 2.;
 float tkIPSigZCut_    = 100000;
@@ -256,7 +240,6 @@ std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> 
 
 //define functions
 void DefBranch(TTree* outtr){
-
   BranchTLV(recoLep1);     BranchTLV(recoLep2);
   BranchI(recoLep1_pdgId); BranchI(recoLep2_pdgId);
 
@@ -264,23 +247,6 @@ void DefBranch(TTree* outtr){
   BranchF(dilepton_mass);
   BranchI(dilepton_ch);
   BranchI(channel);
-
-  BranchF(Ks_x);   BranchF(Ks_x_S);   BranchF(Ks_x_B);   BranchF(Ks_rho);   BranchF(Ks_rho_S);   BranchF(Ks_rho_B);   BranchF(Ks_d);   BranchF(Ks_d_S);   BranchF(Ks_d_B);
-  BranchF(lamb_x); BranchF(lamb_x_S); BranchF(lamb_x_B); BranchF(lamb_rho); BranchF(lamb_rho_S); BranchF(lamb_rho_B); BranchF(lamb_d); BranchF(lamb_d_S); BranchF(lamb_d_B);
-
-  BranchF(significance_S); BranchF(significance_B);
-
-  BranchO(gen_step0);
-  BranchO(gen_step1);
-
-  BranchVF(jet_pt);       BranchVF(jet_eta);       BranchVF(jet_phi);       BranchVF(jet_energy);       BranchVI(jet_pdgId);
-  BranchVF(KsInJet_pt);   BranchVF(KsInJet_eta);   BranchVF(KsInJet_phi);   BranchVF(KsInJet_energy);   BranchVF(KsInJet_R);   BranchVF(KsInJet_outR);   BranchVF(KsInJet_rho);   BranchVF(KsInJet_d); 
-  BranchVF(lambInJet_pt); BranchVF(lambInJet_eta); BranchVF(lambInJet_phi); BranchVF(lambInJet_energy); BranchVF(lambInJet_R); BranchVF(lambInJet_outR); BranchVF(lambInJet_rho); BranchVF(lambInJet_d);
-  BranchVF(lepInJet_pt);  BranchVF(lepInJet_eta);  BranchVF(lepInJet_phi);  BranchVF(lepInJet_energy);  BranchVF(lepInJet_R);  BranchVF(lepInJet_outR);
-  BranchVI(nKsInJet);     BranchVI(nLambInJet);    BranchVI(nLepInJet);
-
-  BranchVF(jet1_diHadron_mass);
-  BranchVF(jet2_diHadron_mass);
 }
 
 void SetJetBranch(TTree* tr) {
