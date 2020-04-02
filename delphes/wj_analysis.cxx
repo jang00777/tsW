@@ -26,12 +26,15 @@ int main(int argc, char* argv[])
   // check cpu time (start)
   std::clock_t c_start = std::clock();
 
-  //read input file
+  // read input file
   cout << "Input File : " << inf.c_str() << "\nOutput File : " << outf.c_str() << "\nDecay Channel : " << m_decayChannel.c_str() << endl;
+
+  // set decay channel : di-leptonic (tt->qWqW->qqlvlv) or semi-leptonic (tt->qWqW->qqqqlv)
   int decay_ch = 0;
   if (m_decayChannel == "semilepton" || m_decayChannel == "semi") decay_ch = 1;
   if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   decay_ch = 2;
 
+  // load inputs
   auto inFile = TFile::Open(inf.c_str(), "READ");
   auto inTree = (TTree*) inFile->Get("Delphes");
   inTree->SetBranchStatus("*", true);
@@ -43,12 +46,11 @@ int main(int argc, char* argv[])
   inTree->SetBranchAddress("MissingET",   &missingET);
   inTree->SetBranchAddress("Track",       &tracks);
 
-  //make out file
+  // make out output file
   auto out   = TFile::Open(outf.c_str(), "RECREATE");
   auto outtr = new TTree("event", "event");
   auto jettr = new TTree("MVA_jet", "MVA_jet");
   auto hadtr = new TTree("MVA_had", "MVA_had");
-
 
   DefBranch(outtr);
   SetJetBranch(jettr);
@@ -63,7 +65,7 @@ int main(int argc, char* argv[])
     inTree->GetEntry(iev);
     ResetBranch();
     EventSelection(cutflow, decay_ch);
-    if (b_step < 4) continue;
+    if (b_step < 4) continue; // Run events passing jet selection(step4) for di-leptonic case and b-jet selection for semi-leptonic case (see EventSelection() function)
     //cout << " ============================================ " << endl;
     MatchingGenJet();
     HadronReconstruction();
@@ -75,7 +77,6 @@ int main(int argc, char* argv[])
     outtr->Fill();
   }
   inFile->Close();
-  //outtr->Write();
   cutflow->Write();
 
   out->Write();
@@ -93,44 +94,25 @@ void ResetBranch(){
     m_selectedJet.clear(); m_matchedJet.clear();
     m_recoHad.clear();
 
-
     b_recoLep1.SetPtEtaPhiM(0,0,0,0); b_recoLep2.SetPtEtaPhiM(0,0,0,0);
     b_recoLep1_pdgId = -99; b_recoLep2_pdgId = -99;
 
     // MatchingGenJet()
     b_dilepton_mass = -99; b_dilepton_ch = 0; b_step = 0; 
 
-    b_Ks_x   = -1; b_Ks_x_S   = -1; b_Ks_x_B   = -1; b_Ks_rho   = -99;  b_Ks_rho_S   = -99;  b_Ks_rho_B   = -99;  b_Ks_d   = -99; b_Ks_d_S   = -99; b_Ks_d_B   = -99;
-    b_lamb_x = -1; b_lamb_x_S = -1; b_lamb_x_B = -1; b_lamb_rho = -999; b_lamb_rho_S = -999; b_lamb_rho_B = -999; b_lamb_d = -99; b_lamb_d_S = -99; b_lamb_d_B = -99;
-
-    b_significance_S = -99; b_significance_B = -99;
-
     b_channel = -1;
-
-    b_gen_step0 = false; b_gen_step1 = false;
-
-    b_jet_pt.clear(); b_jet_eta.clear(); b_jet_phi.clear(); b_jet_energy.clear();
-    b_jet_pdgId.clear();
-
-    b_KsInJet_pt.clear();   b_KsInJet_eta.clear();   b_KsInJet_phi.clear();   b_KsInJet_energy.clear();   b_KsInJet_R.clear();   b_KsInJet_outR.clear();   b_KsInJet_rho.clear();   b_KsInJet_d.clear();
-    b_lambInJet_pt.clear(); b_lambInJet_eta.clear(); b_lambInJet_phi.clear(); b_lambInJet_energy.clear(); b_lambInJet_R.clear(); b_lambInJet_outR.clear(); b_lambInJet_rho.clear(); b_lambInJet_d.clear();
-    b_lepInJet_pt.clear();  b_lepInJet_eta.clear();  b_lepInJet_phi.clear();  b_lepInJet_energy.clear();  b_lepInJet_R.clear();
-
-    b_nKsInJet.clear(); b_nLambInJet.clear(); b_nLepInJet.clear();
-
-    b_jet1_diHadron_mass.clear(); b_jet2_diHadron_mass.clear();
 }
 
-//std::vector<Jet*> 
 std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> recoLep) {
-  //std::vector<Jet*>
   std::map<int, Jet*> selectedJets;
   for ( unsigned k = 0; k < jets->GetEntries(); ++k){
     auto jet = (Jet*) jets->At(k);
-    if (jet->PT < cut_JetPt) continue;
+    if (jet->PT       < cut_JetPt) continue;
     if (abs(jet->Eta) > cut_JetEta) continue;
     bool hasOverlap = false;
-    for (auto lep : recoLep) { if ((jet->P4()).DeltaR(lep.tlv) < 0.4) hasOverlap = true; }
+    TLorentzVector jet_tlv;
+    jet_tlv.SetPtEtaPhiM(jet->PT, jet->Eta, jet->Phi, jet->Mass);
+    for (auto lep : recoLep) { if (jet_tlv.DeltaR(lep.tlv) < cut_JetConeSizeOverlap) hasOverlap = true; }
     if (hasOverlap) continue;
     selectedJets[k] = jet;
   }
@@ -143,10 +125,8 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
     std::vector<struct Lepton> recoLep;
     std::vector<struct Lepton> recoEl;
     std::vector<struct Lepton> recoMu;
-
-    SetCutValues(decaychannel); // decaychannel == 1 : Semileptonic decay channel / decaychannel == 2 : Dileptonic decay channel
-
-    // get recoLep vector
+    SetCutValues(decaychannel); // Cut values are different by channels, decaychannel == 1 : Semileptonic decay channel / decaychannel == 2 : Dileptonic decay channel
+    // get recoLep
     for (unsigned i = 0; i < muons->GetEntries(); ++i){
       auto mu = (Muon*) muons->At(i);
       if (abs(mu->Eta) > cut_MuonEta) continue;
@@ -167,14 +147,13 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
 
     // b-jet selection
     std::vector<Jet*> selectedBJets;
-    //for (auto jet : m_selectedJet){
     for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){
       if (jet->second->BTag) selectedBJets.push_back(jet->second);
     }
 
     // Semi-lepton case
     if (decaychannel == 1) {
-      // get vetoLep vector
+      // get vetoLep
       std::vector<struct Lepton> vetoEl;
       std::vector<struct Lepton> vetoMu;
       for (unsigned j = 0; j < electrons->GetEntries(); ++j){
@@ -262,16 +241,16 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
 void MatchingGenJet() {
   std::vector<const GenParticle*> genTops;
   genTops.clear();
-  for (int i = 0; i < particles->GetEntries(); ++ i){
+  for (int i = 0; i < particles->GetEntries(); ++ i){ // Loop over genParticles and collect necessary information 
     auto p = (const GenParticle*) particles->At(i);
     if (p->Status   >  30) continue;
     if (abs(p->PID) != 6)  continue;
     auto top = getLast(particles,p);
     genTops.push_back(top);
 
-    auto quark     = (const GenParticle*) particles->At(top->D1);
-    auto Wboson    = (const GenParticle*) particles->At(top->D2);
-    auto lastBoson = getLast(particles, Wboson);
+    auto quark     = (const GenParticle*) particles->At(top->D1); // gen quark from top-quark
+    auto Wboson    = (const GenParticle*) particles->At(top->D2); // gen W-boson from top-quark
+    auto lastBoson = getLast(particles, Wboson); // Get a last copy of W-boson in the decay chain
     m_genQuark.push_back(quark);
 
     auto dau1_from_W = (const GenParticle*) particles->At(lastBoson->D1); // for dilep, always neutrino
@@ -280,10 +259,9 @@ void MatchingGenJet() {
     struct Lepton lep1 = toLepton(dau1_from_W);
     struct Lepton lep2 = toLepton(dau2_from_W);
 
+    // Collect leptons from W-boson, for dilepton, the size of m_genLepton should be 2 and for semilepton, 1
     if (abs(lep1.pdgid) == 11 || abs(lep1.pdgid) == 13) m_genLepton.push_back(lep1);
     if (abs(lep2.pdgid) == 11 || abs(lep2.pdgid) == 13) m_genLepton.push_back(lep2);
-
-    //cout << m_genLepton.size() << " : quark from top : " << setw(10) << quark->PID << " | W boson : " << setw(10) << lastBoson->PID << " | dau1 : " << setw(10) << dau1_from_W->PID << " | dau2 : " << setw(10) << dau2_from_W->PID << endl;
   }
 
   if ( m_genQuark.size() < 2 ) {
@@ -296,70 +274,52 @@ void MatchingGenJet() {
 
   TLorentzVector wl1_tlv;
   TLorentzVector wl2_tlv;
-  if (m_decayChannel == "dilepton" || m_decayChannel == "di") {//m_genLepton.size() == 2){
+  if (m_decayChannel == "dilepton" || m_decayChannel == "di") {
     if (abs(m_genLepton[0].pdgid) == abs(m_genLepton[1].pdgid)) {
       if      (abs(m_genLepton[0].pdgid) == 11) b_channel = 1; // ee channel
       else if (abs(m_genLepton[0].pdgid) == 13) b_channel = 2; // mm channel
       else if (abs(m_genLepton[0].pdgid) == 15) b_channel = 3; // tau
-    } else b_channel = 0; // em channel
-  } else if (m_decayChannel == "semilepton" || m_decayChannel == "semi") {//else if (m_genLepton.size() == 1) {
+    } else b_channel = 0;                                      // em channel
+  } else if (m_decayChannel == "semilepton" || m_decayChannel == "semi") {
     if      (abs(m_genLepton[0].pdgid) == 11) b_channel = 1; // e+jet channel
     else if (abs(m_genLepton[0].pdgid) == 13) b_channel = 2; // mu+jet channel
     else if (abs(m_genLepton[0].pdgid) == 15) b_channel = 3; // tau+jet channel
   }
 
-  //for (unsigned int i = 0; i < m_selectedJet.size(); ++i) {
-  for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){
+  for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){ // Loop over jets that passed jet selection
     auto jIdx = jet->first; 
     auto selJet = jet->second;
-    TLorentzVector jet_tlv = selJet->P4();
-    auto tq1_tlv = m_genQuark[0]->P4();
-    auto tq2_tlv = m_genQuark[1]->P4();
+    TLorentzVector jet_tlv, tq1_tlv, tq2_tlv;
+    jet_tlv.SetPtEtaPhiM(selJet->PT, selJet->Eta, selJet->Phi, selJet->Mass);
+    tq1_tlv.SetPtEtaPhiM(m_genQuark[0]->PT, m_genQuark[0]->Eta, m_genQuark[0]->Phi, m_genQuark[0]->Mass);
+    tq2_tlv.SetPtEtaPhiM(m_genQuark[1]->PT, m_genQuark[1]->Eta, m_genQuark[1]->Phi, m_genQuark[1]->Mass);
 
-    if (m_decayChannel == "dilepton"   || m_decayChannel == "di") { wl1_tlv = m_genLepton[0].tlv; wl2_tlv = m_genLepton[1].tlv;}
+    if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   { wl1_tlv = m_genLepton[0].tlv; wl2_tlv = m_genLepton[1].tlv;}
     if (m_decayChannel == "semilepton" || m_decayChannel == "semi") { wl1_tlv = m_genLepton[0].tlv;}
 
-    if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) {
+    // deltaR matching between reco. jet and quark from top-quark (for m_matchedJet, see struct RecoJet in header file)
+    if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) { // Overlap case ==> we will not use this jet
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), -99,                          true,  -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), -99,                     -99,                          true,  -99, false, false}); 
-    } else if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap ) {
+    } else if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap ) { // jet matched to quark1 from top-quark
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[0]->PT, false, -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[0]->PT, false, -99, false, false}); 
-    } else if (jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) {
+    } else if (jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) { // jet matched to quark2 from to-quark
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
     }
-
-    //cout << "selected Jet idx : "                                     << setw(2)  << jIdx 
-    //     << " dR (tq1 = " << setw(2) << m_genQuark[0]->PID << " ) : " << setw(10) << jet_tlv.DeltaR(tq1_tlv) 
-    //     << " dR (tq2 = " << setw(2) << m_genQuark[1]->PID << " ) : " << setw(10) << jet_tlv.DeltaR(tq2_tlv) 
-    //     << " jet PID : "                                             << setw(2)  << selJet->Flavor 
-    //     << " Gen PT 1 : "                                            << setw(10) << m_genQuark[0]->PT 
-    //     << " Gen PT 2 : "                                            << setw(10) << m_genQuark[1]->PT 
-    //     << " Jet PT : "                                              << setw(10) << selJet->PT 
-    //     << " Jet PT / Gen1 PT : "                                    << setw(10) << selJet->PT/m_genQuark[0]->PT 
-    //     << " Jet PT / Gen2 PT : "                                    << setw(10) << selJet->PT/m_genQuark[1]->PT  
-    //     << " no. matched jet : "                                     << setw(2)  << m_matchedJet.size() 
-    //     << endl;
   }
 
   if (m_matchedJet.size() != 0) {
-    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.j->PT > b.j->PT); } ); // sort with pT ordering
+    // Sort by pT and dR(lep, jet) and then set a flag for jets with highest top 2 pT or closest distance to lepton
+    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.j->PT > b.j->PT); } ); // Sort with pT ordering
     if (m_matchedJet.size() > 0) m_matchedJet[0].hasHighestPt  = true;
     if (m_matchedJet.size() > 1) m_matchedJet[1].hasHighestPt  = true;
-    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl1 < b.drl1); } ); // sort with dR(lep, jet) ordering
+    sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl1 < b.drl1); } ); // Sort with dR(lep, jet) ordering
     m_matchedJet[0].hasClosestLep = true;
-    if (m_decayChannel == "dilepton" || m_decayChannel == "di") sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl2 < b.drl2); } ); // sort with dR(lep, jet) ordering
+    if (m_decayChannel == "dilepton" || m_decayChannel == "di") sort(m_matchedJet.begin(), m_matchedJet.end(), [] (RecoJet a, RecoJet b) { return (a.drl2 < b.drl2); } ); // Sort with dR(lep, jet) ordering
     m_matchedJet[1].hasClosestLep = true;
   }
-  //for (auto i =0; i < m_matchedJet.size(); ++i) {
-  //  cout << " >>>>> matched Jet idx : " << setw(2)  << m_matchedJet[i].idx 
-  //       << " dR : "                    << setw(10) << m_matchedJet[i].dr 
-  //       << " pT : "                    << setw(10) << m_matchedJet[i].j->PT 
-  //       << " x : "                     << setw(10) << m_matchedJet[i].x 
-  //       << " jet PID : "               << setw(2)  << m_matchedJet[i].pdgid 
-  //       << " no. matched jet : "       << setw(2)  << m_matchedJet.size() << endl;
-  //}
 }
 
 void HadronReconstruction() {
@@ -369,11 +329,13 @@ void HadronReconstruction() {
     auto hadCand1 = (Track*) tracks->At(i);
     if (hadCand1->Charge != 1) continue; // Only pick positive charge
     if (abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) continue; // Exclude leptons
+    //if (hadCand1->PT < tkPTCut_) continue;
     //if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
     for (auto j = 0; j < tracks->GetEntries(); ++j) {
       auto hadCand2 = (Track*) tracks->At(j);
       if (hadCand2->Charge != -1) continue; // Only pick negative charge
       if (abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) continue; // Exclude leptons
+      //if (hadCand2->PT < tkPTCut_) continue;
       //if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
 
       TLorentzVector dauCand1_pion_tlv;   
@@ -381,61 +343,30 @@ void HadronReconstruction() {
       TLorentzVector dauCand2_pion_tlv;   
       TLorentzVector dauCand2_proton_tlv; 
 
-      dauCand1_pion_tlv.SetPtEtaPhiM(  hadCand1->PT, hadCand1->Eta, hadCand1->Phi, pionMass_);
-      dauCand1_proton_tlv.SetPtEtaPhiM(hadCand1->PT, hadCand1->Eta, hadCand1->Phi, protonMass_);
-      dauCand2_pion_tlv.SetPtEtaPhiM(  hadCand2->PT, hadCand2->Eta, hadCand2->Phi, pionMass_);
-      dauCand2_proton_tlv.SetPtEtaPhiM(hadCand2->PT, hadCand2->Eta, hadCand2->Phi, protonMass_);
+      //dauCand1_pion_tlv.SetPtEtaPhiM(  hadCand1->PT, hadCand1->Eta, hadCand1->Phi, pionMass_);
+      //dauCand1_proton_tlv.SetPtEtaPhiM(hadCand1->PT, hadCand1->Eta, hadCand1->Phi, protonMass_);
+      //dauCand2_pion_tlv.SetPtEtaPhiM(  hadCand2->PT, hadCand2->Eta, hadCand2->Phi, pionMass_);
+      //dauCand2_proton_tlv.SetPtEtaPhiM(hadCand2->PT, hadCand2->Eta, hadCand2->Phi, protonMass_);
+
+      // Get not perigee momentum (see ParticlePropagator.cc) but original momentum (gen level pion) 
+      auto genDau1     = (GenParticle*) hadCand1->Particle.GetObject();
+      auto genDau2     = (GenParticle*) hadCand2->Particle.GetObject();
+      dauCand1_pion_tlv.SetPtEtaPhiM(  hadCand1->PT, hadCand1->Eta, genDau1->Phi, pionMass_);
+      dauCand1_proton_tlv.SetPtEtaPhiM(hadCand1->PT, hadCand1->Eta, genDau1->Phi, protonMass_);
+      dauCand2_pion_tlv.SetPtEtaPhiM(  hadCand2->PT, hadCand2->Eta, genDau2->Phi, pionMass_);
+      dauCand2_proton_tlv.SetPtEtaPhiM(hadCand2->PT, hadCand2->Eta, genDau2->Phi, protonMass_);
 
       TLorentzVector hadCand_pion_pion_tlv    = dauCand1_pion_tlv   + dauCand2_pion_tlv;
       TLorentzVector hadCand_pion_proton_tlv  = dauCand1_pion_tlv   + dauCand2_proton_tlv;
       TLorentzVector hadCand_proton_pion_tlv  = dauCand1_proton_tlv + dauCand2_pion_tlv;
       
-      if ((fabs(hadCand_pion_pion_tlv.M() - ksMass_)/ksMass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*211))  { 
-        /*
-        cout << "Pairing : "
-             << " Mass diff "       << setw(14) << fabs(hadCand_pion_pion_tlv.M() - ksMass_)
-             << " Reco Mass : "     << setw(8)  << hadCand_pion_pion_tlv.M()
-             << " GEN Mass : "      << setw(8)  << ksMass_ 
-             << " GEN PDG : "       << setw(5)  << ksPdgId_ 
-             << " dau1 PID : "      << setw(5)  << hadCand1->PID
-             << " dau2 PID : "      << setw(5)  << hadCand2->PID
-             << " GEN idx : "       << setw(5)  << "-1"
-             << " dau1 idx : "      << setw(5)  << i
-             << " dau2 idx : "      << setw(5)  << j
-             << endl;
-        */
+      if ((fabs(hadCand_pion_pion_tlv.M() - ksMass_)/ksMass_) < 0.3) { // Invariant mass cut 
         m_recoHad.push_back({hadCand_pion_pion_tlv, dauCand1_pion_tlv, dauCand2_pion_tlv, -1, i, j, ksPdgId_, pionPdgId_, (-1)*pionPdgId_, -99, false, false});
       }
-      if ((fabs(hadCand_pion_proton_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*2212)) {
-        /*
-        cout << "Pairing : "
-             << " Mass diff "      << setw(14) << fabs(hadCand_pion_proton_tlv.M() - lambda0Mass_)
-             << " Reco Mass : "    << setw(8)  << hadCand_pion_proton_tlv.M()
-             << " GEN Mass : "     << setw(8)  << lambda0Mass_ 
-             << " GEN PDG : "      << setw(5)  << lambda0PdgId_ 
-             << " dau1 PID : "     << setw(5)  << hadCand1->PID
-             << " dau2 PID : "     << setw(5)  << hadCand2->PID
-             << " GEN idx : "      << setw(5)  << "-1"
-             << " dau1 idx : "     << setw(5)  << i
-             << " dau2 idx : "     << setw(5)  << j
-             << endl;
-        */
+      if ((fabs(hadCand_pion_proton_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) { // Invariant mass cut
         m_recoHad.push_back({hadCand_pion_proton_tlv, dauCand1_pion_tlv, dauCand2_proton_tlv, -1, i, j, lambda0PdgId_, pionPdgId_, (-1)*protonPdgId_, -99, false, false});
       }
-      if ((fabs(hadCand_proton_pion_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) {// && (abs(hadCand1->PID * hadCand2->PID) == 211*2212)) {
-        /*
-        cout << "Pairing : "
-             << " Mass diff "      << setw(14) << fabs(hadCand_proton_pion_tlv.M() - lambda0Mass_)
-             << " Reco Mass : "    << setw(8)  << hadCand_proton_pion_tlv.M()
-             << " GEN Mass : "     << setw(8)  << lambda0Mass_ 
-             << " GEN PDG : "      << setw(5)  << lambda0PdgId_ 
-             << " dau1 PID : "     << setw(5)  << hadCand1->PID
-             << " dau2 PID : "     << setw(5)  << hadCand2->PID
-             << " GEN idx : "      << setw(5)  << "-1"
-             << " dau1 idx : "     << setw(5)  << i
-             << " dau2 idx : "     << setw(5)  << j
-             << endl;
-        */
+      if ((fabs(hadCand_proton_pion_tlv.M() - lambda0Mass_)/lambda0Mass_) < 0.3) { // Invariant mass cut
         m_recoHad.push_back({hadCand_proton_pion_tlv, dauCand1_proton_tlv, dauCand2_pion_tlv, -1, i, j, lambda0PdgId_, protonPdgId_, (-1)*pionPdgId_, -99, false, false});
       }
     }
@@ -443,58 +374,56 @@ void HadronReconstruction() {
 }
 
 void HadronPreselection(std::vector<RecoHad> recoHad) {
+  // Preselection cuts for reconstructed hadrons
+  // Not fully implemented yet
   for (auto i=0; i < recoHad.size(); ++i) {
     if (recoHad[i].tlv.Eta() > 2.5) continue;
+    if (recoHad[i].dau1_tlv.Pt() < 0.95 || recoHad[i].dau2_tlv.Pt() < 0.95) continue;
+    //if (recoHad[i].dau1_D0Sig    < 5.   || recoHad[i].dau2_D0Sig    < 5.)   continue;
     else recoHad[i].isSelected = true;
   }
 }
 
 void FindTruthMatchedHadron() {
   int n = 0;
-  for (int i = 0; i < particles->GetEntries(); ++i){
+  for (int i = 0; i < particles->GetEntries(); ++i){ // Loop over all genParticles
     bool  isFromTop = false;
     bool  isFromW   = false;
     int   isFrom    = -99;
     float x         = -99;
     auto p = (const GenParticle*) particles->At(i);
-    if (p->PID != 310 && p->PID != 3122) continue;
-    if (p->D1  == -1  || p->D2  == -1) continue;
+    if (p->PID != 310 && p->PID != 3122) continue; // We are only intrested in some hadrons (Ks(pdgId == 310) and Lambda0(pdgId == 3122))
+    if (p->D1  == -1  || p->D2  == -1)   continue; // We need a gen. level link to their daughters
+    // Get gen. daughter objects from gen hadrons
     auto d1 = (const GenParticle*) particles->At(p->D1);
     auto d2 = (const GenParticle*) particles->At(p->D2);
-    if ( p->PID == 310  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue;
-    if ( p->PID == 3122 ) {
+    if ( p->PID == 310  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue; // Pick only charged pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-K-zero-S.pdf)
+    if ( p->PID == 3122 ) { // Pick only proton - pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-lambda.pdf) 
       if      ( (abs(d1->PID) != 211  && abs(d1->PID) != 2212) || (abs(d2->PID) != 211  && abs(d2->PID) != 2212) ) continue;
       else if ( abs(d1->PID) == abs(d2->PID) ) continue;
     }
-    if (d1->PID*d2->PID > 0) continue; 
+    if (d1->PID*d2->PID > 0) continue; // Check opposite charge 
 
-    auto motherList = getMlist(particles, p);
+    auto motherList = getMlist(particles, p); // Get All mothers of gen. hadron
     for (auto j=0; j < motherList.size()-1; ++j) {
-      //if ( j == 0) {
-      //cout << "[ " << setw(3) << j   << " / " << setw(3) << motherList.size() 
-      //     << " ] th starting point (Index)  ===> "   << setw(5) << p->PID                << " ( " << setw(4) << i                   << " ) " 
-      //     << " dau1 (Index): "                       << setw(5) << d1->PID               << " ( " << setw(4) << p->D1               << " ) " 
-      //     << " dau2 (Index): "                       << setw(5) << d2->PID               << " ( " << setw(4) << p->D2               << " ) " 
-      //     << endl;
-      //}
-      //cout << "[ " << setw(3) << j+1 << " / " << setw(3) << motherList.size() 
-      //     << " ] th mother particle (Index) ===> "   << setw(5) << motherList[j]->PID    << " ( " << setw(4) << motherList[j+1]->D1 << " ) "
-      //     << " status : "                            << setw(5) << motherList[j]->Status
-      //     << endl;
-      if ( abs(motherList[j]->PID) == 24 && !isFromW) {
+      if ( abs(motherList[j]->PID) == 24 && !isFromW) { // Check whether gen. hadron comes from W-boson or not
         isFromW = true;
-        isFrom  = motherList[j-1]->PID;
+        isFrom  = motherList[j-1]->PID; // Check flavour of quark from which gen. hadron comes
         x       = p->PT/motherList[j-1]->PT;
       }
-      if ( abs(motherList[j]->PID) == 6 && motherList[j]->Status == 62 ) {
+      if ( abs(motherList[j]->PID) == 6 && motherList[j]->Status == 62 ) { // Check if gen. hadron comes from top-quark
         isFromTop = true; 
         if (isFromW == false) { isFrom = motherList[j-1]->PID; x = p->PT/motherList[j-1]->PT; }
         break;
       }
     }
-    m_genHadron[i] = {p->P4(), d1->P4(), d2->P4(), x, i, p->PID, p->D1, d1->PID, p->D2, d2->PID, isFrom, isFromTop, isFromW};
-    //cout << " gen pdgId : " << setw(5) << p->PID << " dau 1 index : " << setw(5) << p->D1 << " dau 2 index : " << setw(5) << p->D2 << " dau 1 pdgId : " << setw(5) << d1->PID << " dau 2 pdgId : " << setw(5) << d2->PID << " isFromTop : " << setw(5) << isFromTop << " isFromW : " << setw(5) << isFromW << endl;
-
+    // Can't trust P4() function ...
+    TLorentzVector p_tlv, d1_tlv, d2_tlv;
+    p_tlv.SetPtEtaPhiM(p->PT, p->Eta, p->Phi, p->Mass);
+    d1_tlv.SetPtEtaPhiM(d1->PT, d1->Eta, d1->Phi, d1->Mass);
+    d2_tlv.SetPtEtaPhiM(d2->PT, d2->Eta, d2->Phi, d2->Mass);
+    
+    m_genHadron[i] = {p_tlv, d1_tlv, d2_tlv, x, i, p->PID, p->D1, d1->PID, p->D2, d2->PID, isFrom, isFromTop, isFromW};
   }
 }
 
@@ -511,7 +440,7 @@ int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
     if (m_hadPreCut && !m_recoHad[i].isSelected) continue;
     if (dR > cut_JetConeSizeOverlap) continue;
 
-    if (method == "BDT") {
+    if (method == "BDT") { // The method isn't constructed yet
       cout << "BDT ==> Work in progress" << endl;
       // auto hadBDTScore = m_hadReader->EvaluateMVA("KS_BDT");
       // if (hadBDTScore > maxBDTScore) {
@@ -519,21 +448,21 @@ int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
       //   hIdx = i;
       // }
     }
-    if (method == "pT" || method == "pt") {
+    if (method == "pT" || method == "pt") { // pT matching
       auto hadronPt = had_tlv.Pt();
       if (hadronPt > highestPt) {
         highestPt = hadronPt;
         hIdx = i;
       }
     }
-    if (method == "dot") {
+    if (method == "dot") { // 4-vector matching
       auto dotProduct = had_tlv.Dot(jet_tlv);
       if (dotProduct < lowestDot) {
         lowestDot = dotProduct;
         hIdx = i;
       }
     }
-    if (method == "dr" || method == "dR") {
+    if (method == "dr" || method == "dR") { // deltaR matching
       if (dR < closestDr) {
         closestDr = dR;
         hIdx = i;
@@ -549,24 +478,23 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
   for ( unsigned i = 0; i < jets->GetEntries(); ++i){
     ResetJetValues();
     auto jet     = (Jet*) jets->At(i);
-    auto jet_tlv = jet->P4();
+    TLorentzVector jet_tlv;
+    jet_tlv.SetPtEtaPhiM(jet->PT, jet->Eta, jet->Phi, jet->Mass);
 
-    if (m_selectedJet[i] != 0) { 
+    if (m_selectedJet[i] != 0) { // check if the i-th jet is selected jet from event selection 
       b_isSelectedJet = true;
     }
     for ( auto j = 0; j < m_matchedJet.size(); ++j ) {
-      if (m_matchedJet[j].idx == i) {
+      if (m_matchedJet[j].idx == i) { // check if the i-th jet is jet which matched to gen s/b quark from top-quark
         b_isFrom        = m_matchedJet[j].gen_pdgid;
         b_hasHighestPt  = m_matchedJet[j].hasHighestPt;
         b_hasClosestLep = m_matchedJet[j].hasClosestLep;
       }
-      //if (m_genQuark.size() > 1) cout << " Gen Quark : " << setw(4) << m_genQuark[0]->PID << " | " << setw(4) << m_genQuark[1]->PID << " isFrom ====> : " << setw(4) << m_matchedJet[j].gen_pdgid << " /// " << setw(4) << m_matchedJet[j].pdgid << endl;
-      //else cout << "Less than 2 gen quark" << endl;
     }
-    auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod);
+    auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod); // check if reco. hadron(Ks or lambda0) is inside the i-th jet according to a matching method
     SetJetValues(jet);
     if (hIdx != -1) {
-      SetHadValues(jettr, hIdx, jet_tlv);
+      SetHadValues(jettr, hIdx, jet_tlv); // if there is a reco. hadron within the i-th jet, then get information of reco. hadron
     }
     jettr->Fill();
   }
@@ -645,19 +573,13 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
   b_dau2_ctgThetaErr = dau2->ErrorCtgTheta;
   b_dau2_D0Sig       = dau2->D0/dau2->ErrorD0;
   b_dau2_DZSig       = dau2->DZ/dau2->ErrorDZ;
-  if (m_genHadron.size() != 0) {
+  if (m_genHadron.size() != 0) { // Start filling truth matched information
     auto genDau1     = (GenParticle*) dau1->Particle.GetObject();
     auto genDau2     = (GenParticle*) dau2->Particle.GetObject();
-    //cout << " genHad[genDau1->M1].idx : "   << setw(5) << m_genHadron[genDau1->M1].idx 
-    //     << " genDau1->M1 : "               << setw(5) << genDau1->M1
-    //     << " genHad[genDau2->M1].idx : "   << setw(5) << m_genHadron[genDau2->M1].idx 
-    //     << " genDau2->M1 : "               << setw(5) << genDau2->M1
-    //     << " genHad[genDau1->M1].pdgid : " << setw(5) << m_genHadron[genDau1->M1].pdgid
-    //     << " genDau1->pdgid : "            << setw(5) << genDau1->PID
-    //     << " genHad[genDau2->M1].pdgid : " << setw(5) << m_genHadron[genDau2->M1].pdgid
-    //     << " genDau2->pdgid : "            << setw(5) << genDau2->PID
-    //     << endl;
-    if ((genDau1->M1 == genDau2->M1) && m_genHadron[genDau1->M1].pdgid != 0) {
+    if ((genDau1->M1 == genDau2->M1) && m_genHadron[genDau1->M1].pdgid == m_recoHad[i].pdgid) { 
+      // m_recoHad is a set of reconstructed hadron candidates wihch are reconstructed from 2 reco. daughters (Track obejcts, See HadronReconstruction() function) 
+      // if reco. hadrons's 2 daughter's gen. information indicates same mother particle(genDau1->M1 == genDau2->M2), then we can say hadron paring is done well.
+      // Also, if also gen. mother particle has same pdgId as reco. hadron, then we call this reco. hadron truth-matched hadron.
       auto genp = (const GenParticle*) particles->At(genDau1->M1);
       b_had_nMatched      = 2;
       b_genHad_x          = m_genHadron[genDau1->M1].x;
