@@ -75,6 +75,7 @@ int main(int argc, char* argv[])
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
     outtr->Fill();
+    //cout << "chk 9 " << endl;
   }
   cout << "total no. top : " << tot << endl;
   cout << "matched to tq1 : " << mat1 << endl;
@@ -88,6 +89,7 @@ int main(int argc, char* argv[])
   cout << "Ratio of (tq1+tq2)/tot : " << 100.*(mat1+mat2)*(1./tot) << endl;
   inFile->Close();
   cutflow->Write();
+  //cout << "chk 11 " << endl;
 
   out->Write();
   out->Close();
