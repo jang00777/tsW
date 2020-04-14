@@ -93,19 +93,28 @@ std::vector<const GenParticle*> m_genQuark;
 std::map<int, struct TruthHad> m_genHadron;
 std::vector<struct Lepton> m_genLepton;
 std::map<int, Jet*> m_selectedJet;
+std::map<int, Jet*> m_selectedBJet;
 std::vector<RecoJet> m_matchedJet;
 std::vector<RecoHad> m_recoHad;
 bool m_hadPreCut = false;
 std::string m_decayChannel;
 
 //declare variable for branch
+// Link between event tree and other trees
+int   b_had_start,      b_had_end;
+int   b_jet_start,      b_jet_end;
+
 //  EventSelection()
 TLorentzVector b_recoLep1, b_recoLep2;
-int b_recoLep1_pdgId, b_recoLep2_pdgId;
+int   b_nJet,           b_nBJet;
+int   b_recoLep1_pdgId, b_recoLep2_pdgId;
+float b_MET;
 
 //  MatchingGenJet()
 float b_dilepton_mass;
 int   b_dilepton_ch, b_channel, b_step;
+
+int sc = 0; int bc = 0; int bh = 0;int sh = 0; int tot = 0; int mat1 = 0; int mat2 = 0;
 
 // FillJetTree() and FillHadTree()
 bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep;
@@ -138,6 +147,25 @@ int   b_genDau2_pdgId;
 float b_genDau2_pt,       b_genDau2_eta,      b_genDau2_phi,      b_genDau2_mass;
 float b_genDau2_D0,       b_genDau2_DZ,       b_genDau2_ctgTheta;
 
+
+void ResetBranch(){
+    m_genQuark.clear();    m_genLepton.clear();    m_genHadron.clear();
+    m_selectedJet.clear(); m_selectedBJet.clear(); m_matchedJet.clear();
+    m_recoHad.clear();
+
+    b_recoLep1.SetPtEtaPhiM(0,0,0,0); b_recoLep2.SetPtEtaPhiM(0,0,0,0);
+    b_recoLep1_pdgId = -99; b_recoLep2_pdgId = -99;
+    b_nJet           = -9;  b_nBJet          = - 9;
+    b_MET            = -99;
+
+    b_had_start      = -1;  b_had_end        = -1;
+    b_jet_start      = -1;  b_jet_end        = -1;
+ 
+    // MatchingGenJet()
+    b_dilepton_mass = -99; b_dilepton_ch = 0; b_step = 0;
+
+    b_channel = -1;
+}
 
 void ResetHadValues() {
   b_had_pt           = -99;   b_had_eta          = -99;   b_had_phi          = -99;   b_had_mass     = -99; b_had_x            = -99; b_had_dr     = -99;
@@ -237,11 +265,16 @@ void SetJetValues(Jet*);
 void SetHadValues(TTree*, int,TLorentzVector jet_tlv = TLorentzVector(0, 0, 0, 0));
 //std::vector<Jet*>
 std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> recoLep);
+std::map<int, Jet*> BJetSelection(std::map<int, Jet*> selJets);
 
 //define functions
 void DefBranch(TTree* outtr){
+  BranchI(nJet);           BranchI(nBJet);
+  BranchF(MET);
   BranchTLV(recoLep1);     BranchTLV(recoLep2);
   BranchI(recoLep1_pdgId); BranchI(recoLep2_pdgId);
+  BranchI(had_start);      BranchI(had_end);
+  BranchI(jet_start);      BranchI(jet_end);
 
   BranchI(step);
   BranchF(dilepton_mass);
