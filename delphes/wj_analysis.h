@@ -246,7 +246,9 @@ void SetJetBranch(TTree* tr);
 void SetHadBranch(TTree* tr);
 
 const GenParticle* getLast(TClonesArray * particles, const GenParticle* p);
-std::vector<const GenParticle*> getMlist(TClonesArray * particles, const GenParticle* p);
+std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenParticle* p);
+std::vector<int> getMomIdxList(TClonesArray * particles, const GenParticle* p);
+
 std::vector<float> collectHadron(std::vector<GenParticle> hadInJet, bool motherCheck);
 std::vector<Double_t> cross3D(std::vector<Double_t> & a, std::vector<Double_t> & b);
 Double_t DeltaPhi(Double_t phi1, Double_t phi2);
@@ -426,19 +428,31 @@ const GenParticle* getLast(TClonesArray * particles, const GenParticle* p){
   return mom;
 }
 
-std::vector<const GenParticle*> getMlist(TClonesArray * particles, const GenParticle* p){
+std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenParticle* p){
   std::vector<const GenParticle*> mlst;
   auto idx = p->M1;
   if (idx == -1) return mlst;
   while(true){
     auto m = (const GenParticle*)particles->At(idx);
     mlst.push_back(m);
-    idx = m->M1;
-    if ( idx == -1) break;
+    if (m->M1 == -1 ) break;
+    else idx = m->M1;
   }
   return mlst;
 }
 
+std::vector<int> getMomIdxList(TClonesArray * particles, const GenParticle* p){
+  std::vector<int> mlst;
+  auto idx = p->M1;
+  if (idx == -1) return mlst;
+  while(true){
+    auto m = (const GenParticle*)particles->At(idx);
+    mlst.push_back(idx);
+    if (m->M1 == -1 ) break;
+    else idx = m->M1;
+  }
+  return mlst;
+}
 
 std::vector<Double_t> cross3D(std::vector<Double_t> & a, std::vector<Double_t> & b){
   std::vector<Double_t> c = { a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0] };
