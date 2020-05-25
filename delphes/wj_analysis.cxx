@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
     inTree->GetEntry(iev);
     ResetBranch();
     EventSelection(cutflow, decay_ch);
-    if (b_step < 4) continue; // Run events passing jet selection(step4) for di-leptonic case and b-jet selection for semi-leptonic case (see EventSelection() function)
+    //if (b_step < 4) continue; // Run events passing jet selection(step4) for di-leptonic case and b-jet selection for semi-leptonic case (see EventSelection() function)
     //cout << " ============================================ " << endl;
     MatchingGenJet();
     HadronReconstruction();
@@ -75,7 +75,6 @@ int main(int argc, char* argv[])
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
     outtr->Fill();
-    //cout << "chk 9 " << endl;
   }
   cout << "total no. top : " << tot << endl;
   cout << "matched to tq1 : " << mat1 << endl;
@@ -89,7 +88,6 @@ int main(int argc, char* argv[])
   cout << "Ratio of (tq1+tq2)/tot : " << 100.*(mat1+mat2)*(1./tot) << endl;
   inFile->Close();
   cutflow->Write();
-  //cout << "chk 11 " << endl;
 
   out->Write();
   out->Close();
@@ -275,7 +273,7 @@ void MatchingGenJet() {
     cout << "No two quarks from top quarks ... skip this event" << endl; 
     return;
   } else if ( (m_genLepton.size() != 2 && m_decayChannel == "di") || (m_genLepton.size() != 1 && m_decayChannel == "semi")) {
-    cout << "No two reco leptons in dileptonic channel or no reco lepton in semileptonic channel ===> Maybe because a case that W boson decay into tau / neutrino isn't included" << endl;
+    //cout << "No two reco leptons in dileptonic channel or no reco lepton in semileptonic channel ===> Maybe because a case that W boson decay into tau / neutrino isn't included" << endl;
     return;
   }
 
@@ -420,17 +418,20 @@ void FindTruthMatchedHadron() {
       else if ( abs(d1->PID) == abs(d2->PID) ) continue;
     }
     if (d1->PID*d2->PID > 0) continue; // Check opposite charge 
-
-    auto motherList = getMlist(particles, p); // Get All mothers of gen. hadron
+    //auto motherList = getMomList(particles, p); // Get All mothers of gen. hadron
+    auto motherList = getMomIdxList(particles, p); // Get All mothers' idx of gen. hadron
     for (auto j=0; j < motherList.size()-1; ++j) {
-      if ( abs(motherList[j]->PID) == 24 && !isFromW) { // Check whether gen. hadron comes from W-boson or not
+      auto mom = (const GenParticle*)particles->At(motherList[j]);
+      if ( abs(mom->PID) == 24 && !isFromW) { // Check whether gen. hadron comes from W-boson or not
+        auto prev_mom = (const GenParticle*)particles->At(motherList[j-1]);
         isFromW = true;
-        isFrom  = motherList[j-1]->PID; // Check flavour of quark from which gen. hadron comes
-        x       = p->PT/motherList[j-1]->PT;
+        isFrom  = prev_mom->PID; // Check flavour of quark from which gen. hadron comes
+        x       = p->PT/prev_mom->PT;
       }
-      if ( abs(motherList[j]->PID) == 6 && motherList[j]->Status == 62 ) { // Check if gen. hadron comes from top-quark
-        isFromTop = true; 
-        if (isFromW == false) { isFrom = motherList[j-1]->PID; x = p->PT/motherList[j-1]->PT; }
+      if ( abs(mom->PID) == 6 && mom->Status == 62 ) { // Check if gen. hadron comes from top-quark
+        auto prev_mom = (const GenParticle*)particles->At(motherList[j-1]);
+        isFromTop = true;
+        if (isFromW == false) { isFrom = prev_mom->PID; x = p->PT/prev_mom->PT; }
         break;
       }
     }
@@ -439,7 +440,6 @@ void FindTruthMatchedHadron() {
     p_tlv.SetPtEtaPhiM(p->PT, p->Eta, p->Phi, p->Mass);
     d1_tlv.SetPtEtaPhiM(d1->PT, d1->Eta, d1->Phi, d1->Mass);
     d2_tlv.SetPtEtaPhiM(d2->PT, d2->Eta, d2->Phi, d2->Mass);
-    
     m_genHadron[i] = {p_tlv, d1_tlv, d2_tlv, x, i, p->PID, p->D1, d1->PID, p->D2, d2->PID, isFrom, isFromTop, isFromW};
   }
 }
