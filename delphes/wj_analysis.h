@@ -430,6 +430,7 @@ const GenParticle* getLast(TClonesArray * particles, const GenParticle* p){
 
 std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenParticle* p){
   std::vector<const GenParticle*> mlst;
+  mlst.resize(128);
   auto idx = p->M1;
   if (idx == -1) return mlst;
   while(true){
@@ -443,6 +444,7 @@ std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenPa
 
 std::vector<int> getMomIdxList(TClonesArray * particles, const GenParticle* p){
   std::vector<int> mlst;
+  mlst.resize(128);
   auto idx = p->M1;
   if (idx == -1) return mlst;
   while(true){
