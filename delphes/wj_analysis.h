@@ -128,7 +128,7 @@ float b_cpt1,             b_cpt2,             b_cpt3,             b_cptA;
 float b_npt1,             b_npt2,             b_npt3,             b_nptA;
 float b_tauWeight;
 
-std::vector<float> b_constituent_pt,     b_constituent_eta,  b_constituent_phi;
+std::vector<float> b_constituent_pt,     b_constituent_eta,  b_constituent_phi, b_constituent_D0, b_constituent_D0Err, b_constituent_DZ, b_constituent_DZErr;
 std::vector<int>   b_constituent_charge, b_constituent_type;
 
 
@@ -221,8 +221,11 @@ void ResetJetValues() {
   b_npt1           = -99;   b_npt2             = -99;    b_npt3          = -99;   b_nptA        = -99;
   b_tauWeight      = -99;
 
-  b_constituent_pt.clear();     b_constituent_eta.clear();  b_constituent_phi.clear(); 
+  b_constituent_pt.clear();     b_constituent_eta.clear();   b_constituent_phi.clear(); 
   b_constituent_charge.clear(); b_constituent_type.clear();
+  b_constituent_D0.clear();     b_constituent_DZ.clear();
+  b_constituent_D0Err.clear();  b_constituent_DZErr.clear();
+
 
   ResetHadValues();
 }
@@ -350,6 +353,10 @@ void SetJetBranch(TTree* tr) {
   tr->Branch("constituent_pt",     "vector<float>", &b_constituent_pt); // For neutral particle, pt = Et
   tr->Branch("constituent_eta",    "vector<float>", &b_constituent_eta);
   tr->Branch("constituent_phi",    "vector<float>", &b_constituent_phi);
+  tr->Branch("constituent_D0",     "vector<float>", &b_constituent_D0);
+  tr->Branch("constituent_DZ",     "vector<float>", &b_constituent_DZ);
+  tr->Branch("constituent_D0Err",  "vector<float>", &b_constituent_D0Err);
+  tr->Branch("constituent_DZErr",  "vector<float>", &b_constituent_DZErr);
   tr->Branch("constituent_charge", "vector<int>",   &b_constituent_charge); 
   tr->Branch("constituent_type",   "vector<int>",   &b_constituent_type); // Neutral hadron : 0, Charged hadron : 1, Electron and Muon : Abs. value of their PID
 
