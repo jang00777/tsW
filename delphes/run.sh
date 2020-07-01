@@ -11,10 +11,15 @@ export LD_LIBRARY_PATH=${DELPHES_HOME}:$LD_LIBRARY_PATH
 export ROOT_INCLUDE_PATH=${DELPHES_HOME}/external:${ROOT_INCLUDE_PATH}
 
 
-samples=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx") 
-dilep=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx")
+#samples=("tt012j_bsbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx")
+#samples=("tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
+#samples=("tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
+samples=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx" "tt012j_bbbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx") 
+#samples=("tt012j_bbbar_2l_FxFx")
+#samples=("tt012j_bsbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
+#dilep=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx")
 #samples=$2
-samples=${dilep}
+#samples=${dilep}
 
 #for f in /home/scratch/tsW/*t*; do
 #for f in /scratch/tsW/*k.root*; do
@@ -26,7 +31,12 @@ for s in ${samples[@]}; do
     fi
     sample_full=${s}_"elIso03_muIso04_newResForm_trackSmearing"
     for f in /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/${sample_full}/*.root; do
-        OUT="Out_`basename $f`"
+        NUM=${f#/home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/${sample_full}/${sample_full}_}
+        OUT="Out_${NUM}"
+        if [ -e "delphes_result/${sample_full}/${OUT}" ]; then
+          echo "delphes_result/${sample_full}/${OUT} is already created ... Skip"
+          continue
+        fi  
         if [ ! -d delphes_result/${sample_full} ]; then
             mkdir delphes_result/${sample_full}
         else 

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <TLorentzVector.h>
+#include <numeric>
 
 #include "TFile.h"
 #include "TTree.h"
@@ -38,6 +39,17 @@ int main(int argc, char* argv[])
   auto inFile = TFile::Open(inf.c_str(), "READ");
   auto inTree = (TTree*) inFile->Get("Delphes");
   inTree->SetBranchStatus("*", true);
+
+  //inTree->SetBranchStatus("GenJet",      true);
+  //inTree->SetBranchStatus("Particle",    true);
+  //inTree->SetBranchStatus("Electron",    true);
+  //inTree->SetBranchStatus("Muon",        true);
+  //inTree->SetBranchStatus("Jet",         true);
+  //inTree->SetBranchStatus("MissingET",   true);
+  //inTree->SetBranchStatus("Track",       true);
+  //inTree->SetBranchStatus("Tower",       true);
+  //inTree->SetBranchStatus("GenParticle", true);
+
   inTree->SetBranchAddress("GenJet",      &gen_jets);
   inTree->SetBranchAddress("Particle",    &particles);
   inTree->SetBranchAddress("Electron",    &electrons);
@@ -65,7 +77,7 @@ int main(int argc, char* argv[])
     inTree->GetEntry(iev);
     ResetBranch();
     EventSelection(cutflow, decay_ch);
-    //if (b_step < 4) continue; // Run events passing jet selection(step4) for di-leptonic case and b-jet selection for semi-leptonic case (see EventSelection() function)
+    if (b_step < 4) continue; // Run events passing jet selection(step4) for di-leptonic case and b-jet selection for semi-leptonic case (see EventSelection() function)
     //cout << " ============================================ " << endl;
     MatchingGenJet();
     HadronReconstruction();
@@ -86,6 +98,10 @@ int main(int argc, char* argv[])
   cout << "b + closest : " << bc << endl;
 
   cout << "Ratio of (tq1+tq2)/tot : " << 100.*(mat1+mat2)*(1./tot) << endl;
+
+  cout << " no. gen Had(Ks + Lambda) from s : " << setw(3) << testS << endl;
+  cout << " no. gen Had(Ks + Lambda) from b : " << setw(3) << testB << endl;
+
   inFile->Close();
   cutflow->Write();
 
@@ -279,6 +295,8 @@ void MatchingGenJet() {
 
   tot += m_genQuark.size();
 
+  //std::cout << "TQ1 : " << m_genQuark[0]->PID << " TQ2 : " << m_genQuark[1]->PID << endl;
+
   TLorentzVector wl1_tlv;
   TLorentzVector wl2_tlv;
   if (m_decayChannel == "dilepton" || m_decayChannel == "di") {
@@ -293,6 +311,9 @@ void MatchingGenJet() {
     else if (abs(m_genLepton[0].pdgid) == 15) b_channel = 3; // tau+jet channel
   }
 
+  int nMatchToQ1 = 0;  int nMatchToQ2 = 0;
+  b_multimatchedS = 0; b_unmatchedS = 0;   b_jetOverlap = 0; 
+  b_multimatchedB = 0; b_unmatchedB = 0;
   for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){ // Loop over jets that passed jet selection
     auto jIdx = jet->first; 
     auto selJet = jet->second;
@@ -313,15 +334,34 @@ void MatchingGenJet() {
     if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) { // Overlap case ==> we will not use this jet
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), -99,                          true,  -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, -99,                -99,                     jet_tlv.DeltaR(wl1_tlv), -99,                     -99,                          true,  -99, false, false}); 
-    } else if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap ) { // jet matched to quark1 from top-quark
+      b_jetOverlap += 1;
+    } else if (jet_tlv.DeltaR(tq1_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq2_tlv) > cut_JetConeSizeOverlap) { // jet matched to quark1 from top-quark
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[0]->PT, false, -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[0]->PID, jet_tlv.DeltaR(tq1_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[0]->PT, false, -99, false, false}); 
       mat1 += 1;
-    } else if (jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap ) { // jet matched to quark2 from to-quark
+      nMatchToQ1 += 1;
+    } else if (jet_tlv.DeltaR(tq2_tlv) <= cut_JetConeSizeOverlap && jet_tlv.DeltaR(tq1_tlv) > cut_JetConeSizeOverlap) { // jet matched to quark2 from to-quark
       if (m_decayChannel == "dilepton"   || m_decayChannel == "di")   m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), jet_tlv.DeltaR(wl2_tlv), selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
       if (m_decayChannel == "semilepton" || m_decayChannel == "semi") m_matchedJet.push_back({jIdx, selJet, selJet->Flavor, m_genQuark[1]->PID, jet_tlv.DeltaR(tq2_tlv), jet_tlv.DeltaR(wl1_tlv), -99,                     selJet->PT/m_genQuark[1]->PT, false, -99, false, false});
       mat2 += 1;
+      nMatchToQ2 += 1;
     }
+  }
+
+  // Check ambiguity per event (mutlmatched/unmatched case will be shown from isSJet or isBJet and jetOverlap will be shown from isOverlap for the case of jet by jet)
+  if (nMatchToQ1 != 0) {
+    if (abs(m_genQuark[0]->PID) == 3) b_multimatchedS = nMatchToQ1;
+    if (abs(m_genQuark[0]->PID) == 5) b_multimatchedB = nMatchToQ1;
+  } else if (nMatchToQ1 == 0) {
+    if (abs(m_genQuark[0]->PID) == 3) b_unmatchedS    = 1;
+    if (abs(m_genQuark[0]->PID) == 5) b_unmatchedB    = 1;   
+  }
+  if (nMatchToQ2 != 0) {
+    if (abs(m_genQuark[1]->PID) == 3) b_multimatchedS = nMatchToQ2;
+    if (abs(m_genQuark[1]->PID) == 5) b_multimatchedB = nMatchToQ2;
+  } else if (nMatchToQ2 == 0) {
+    if (abs(m_genQuark[1]->PID) == 3) b_unmatchedS    = 1;
+    if (abs(m_genQuark[1]->PID) == 5) b_unmatchedB    = 1;
   }
 
   if (m_matchedJet.size() != 0) {
@@ -392,7 +432,8 @@ void HadronPreselection(std::vector<RecoHad> recoHad) {
   // Preselection cuts for reconstructed hadrons
   // Not fully implemented yet
   for (auto i=0; i < recoHad.size(); ++i) {
-    if (recoHad[i].tlv.Eta() > 2.5) continue;
+    recoHad[i].isSelected = false;
+    if (fabs(recoHad[i].tlv.Eta()) > 2.5) continue;
     if (recoHad[i].dau1_tlv.Pt() < 0.95 || recoHad[i].dau2_tlv.Pt() < 0.95) continue;
     //if (recoHad[i].dau1_D0Sig    < 5.   || recoHad[i].dau2_D0Sig    < 5.)   continue;
     else recoHad[i].isSelected = true;
@@ -407,13 +448,13 @@ void FindTruthMatchedHadron() {
     int   isFrom    = -99;
     float x         = -99;
     auto p = (const GenParticle*) particles->At(i);
-    if (p->PID != 310 && p->PID != 3122) continue; // We are only intrested in some hadrons (Ks(pdgId == 310) and Lambda0(pdgId == 3122))
+    if (abs(p->PID) != 310 && abs(p->PID) != 3122) continue; // We are only intrested in some hadrons (Ks(pdgId == 310) and Lambda0(pdgId == 3122))
     if (p->D1  == -1  || p->D2  == -1)   continue; // We need a gen. level link to their daughters
     // Get gen. daughter objects from gen hadrons
     auto d1 = (const GenParticle*) particles->At(p->D1);
     auto d2 = (const GenParticle*) particles->At(p->D2);
-    if ( p->PID == 310  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue; // Pick only charged pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-K-zero-S.pdf)
-    if ( p->PID == 3122 ) { // Pick only proton - pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-lambda.pdf) 
+    if ( abs(p->PID == 310)  && (abs(d1->PID) != 211 || abs(d2->PID) != 211) ) continue; // Pick only charged pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-K-zero-S.pdf)
+    if ( abs(p->PID == 3122) ) { // Pick only proton - pion pair, which is most dominant decay process (See http://pdg.lbl.gov/2019/listings/rpp2019-list-lambda.pdf) 
       if      ( (abs(d1->PID) != 211  && abs(d1->PID) != 2212) || (abs(d2->PID) != 211  && abs(d2->PID) != 2212) ) continue;
       else if ( abs(d1->PID) == abs(d2->PID) ) continue;
     }
@@ -437,6 +478,18 @@ void FindTruthMatchedHadron() {
     }
     // Can't trust P4() function ...
     TLorentzVector p_tlv, d1_tlv, d2_tlv;
+    if (isFromTop) {
+    //  cout << "m_genHadron_CHK : " << "genHad pdgId      : " << setw(5) << p->PID   << " " 
+    //                               << "genHad mother     : " << setw(5) << isFrom   << " "
+    //                               << "genHad dau1 pdgId : " << setw(5) << d1->PID  << " "
+    //                               << "genHad dau2 pdgId : " << setw(5) << d2->PID  << " "
+    //                               << "genHad isFromTop  : " << setw(5) << isFromTop<< " " 
+    //                               << "genHad isFromW    : " << setw(5) << isFromW  << " " 
+    //       << endl;
+      if (abs(isFrom) == 3) { testS += 1; }
+      if (abs(isFrom) == 5) { testB += 1; }
+
+    }
     p_tlv.SetPtEtaPhiM(p->PT, p->Eta, p->Phi, p->Mass);
     d1_tlv.SetPtEtaPhiM(d1->PT, d1->Eta, d1->Phi, d1->Mass);
     d2_tlv.SetPtEtaPhiM(d2->PT, d2->Eta, d2->Phi, d2->Mass);
@@ -508,6 +561,7 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
         b_isFrom        = m_matchedJet[j].gen_pdgid;
         b_hasHighestPt  = m_matchedJet[j].hasHighestPt;
         b_hasClosestLep = m_matchedJet[j].hasClosestLep;
+        b_isOverlap     = m_matchedJet[j].isOverlap;
         //if (abs(b_isFrom) == 3 && b_hasHighestPt) cout << "CHK : " << j << " / " << m_matchedJet[j].idx <<endl;
       }
     }
@@ -556,6 +610,70 @@ void SetJetValues(Jet* jet) {
   b_bTagPhys         = jet->BTagPhys;
   b_tauTag           = jet->TauTag;
   b_tauWeight        = jet->TauWeight;
+
+  CollectJetConstituentInfo(jet);
+
+  auto charged_partons = CollectJetConstituentPt(jet, "charged");
+  auto neutral_partons = CollectJetConstituentPt(jet, "neutral");
+  while (charged_partons.size() < 3) charged_partons.push_back(0.);
+  while (neutral_partons.size() < 3) neutral_partons.push_back(0.);
+  std::sort(charged_partons.begin(), charged_partons.end(), [] (float a, float b) { return (a > b); } );
+  std::sort(neutral_partons.begin(), neutral_partons.end(), [] (float a, float b) { return (a > b); } );
+
+  b_cpt1 = charged_partons[0]; 
+  b_cpt2 = charged_partons[0] + charged_partons[1];
+  b_cpt3 = charged_partons[0] + charged_partons[1] + charged_partons[2];
+  b_cptA = std::accumulate(charged_partons.begin(), charged_partons.end(), 0.0);
+
+  b_npt1 = neutral_partons[0]; 
+  b_npt2 = neutral_partons[0] + neutral_partons[1];
+  b_npt3 = neutral_partons[0] + neutral_partons[1] + neutral_partons[2];
+  b_nptA = std::accumulate(neutral_partons.begin(), neutral_partons.end(), 0.0);
+
+}
+
+std::vector<float> CollectJetConstituentPt(Jet* jet, TString type) {
+  std::vector<float> list;
+  for (auto j=0; j < jet->Constituents.GetEntriesFast(); ++j) {
+    auto object = jet->Constituents.At(j);
+    if (object->IsA() == Track::Class() && type.Contains("charged")) {
+      auto charged_parton = (Track*) object;
+      list.push_back(charged_parton->PT); 
+    }
+    if (object->IsA() == Tower::Class() && type.Contains("neutral")) {
+      auto neutral_parton = (Tower*) object;
+      if (neutral_parton->ET < 1.0) continue;
+      list.push_back(neutral_parton->ET);
+    }
+  }
+  return list;
+}
+
+void CollectJetConstituentInfo(Jet* jet) {
+  for (auto j=0; j < jet->Constituents.GetEntriesFast(); ++j) {
+    auto object = jet->Constituents.At(j);
+    if (object->IsA() == Track::Class()) {
+      auto cp = (Track*) object;
+      b_constituent_pt.push_back(cp->PT); 
+      b_constituent_eta.push_back(cp->Eta); 
+      b_constituent_phi.push_back(cp->Phi); 
+      b_constituent_charge.push_back(cp->Charge);
+      if (abs(cp->PID) == 11 || abs(cp->PID) == 13) {
+        b_constituent_type.push_back(abs(cp->PID));
+      } else {
+        b_constituent_type.push_back(1);
+      }
+    }
+    if (object->IsA() == Tower::Class()) {
+      auto np = (Tower*) object;
+      if (np->ET < 1.0) continue;
+      b_constituent_pt.push_back(np->ET); 
+      b_constituent_eta.push_back(np->Eta);
+      b_constituent_phi.push_back(np->Phi); 
+      b_constituent_charge.push_back(0);
+      b_constituent_type.push_back(0);
+    }
+  }
 }
 
 void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {

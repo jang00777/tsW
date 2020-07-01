@@ -47,8 +47,10 @@ set ExecutionPath {
   JetEnergyScale
 
   JetFlavorAssociation
+  GenJetFlavorAssociation
 
   BTagging
+  GenBTagging
   TauTagging
 
   UniqueObjectFinder
@@ -748,6 +750,24 @@ module JetFlavorAssociation JetFlavorAssociation {
 
 }
 
+########################
+# GenJet Flavor Association
+########################
+
+module JetFlavorAssociation GenJetFlavorAssociation {
+
+  set PartonInputArray Delphes/partons
+  set ParticleInputArray Delphes/allParticles
+  set ParticleLHEFInputArray Delphes/allParticlesLHEF
+  set JetInputArray GenJetFinder/jets
+
+  set DeltaR 0.4
+  set PartonPTMin 1.0
+  set PartonEtaMax 2.5
+
+}
+
+
 ###########
 # b-tagging
 ###########
@@ -762,15 +782,43 @@ module BTagging BTagging {
   # gluon's PDG code has the lowest priority
 
   # based on arXiv:1211.4462
-  
+
+  # From seulgi's card setting
+
   # default efficiency formula (misidentification rate)
-  add EfficiencyFormula {0} {0.01+0.000038*pt}
+  add EfficiencyFormula {0} {0.007+0.000029*pt}
 
   # efficiency formula for c-jets (misidentification rate)
-  add EfficiencyFormula {4} {0.25*tanh(0.018*pt)*(1/(1+ 0.0013*pt))}
+  add EfficiencyFormula {4} {0.13*tanh(0.045*pt)*(1/(1+ 0.00008*pt))}
 
   # efficiency formula for b-jets
-  add EfficiencyFormula {5} {0.85*tanh(0.0025*pt)*(25.0/(1+0.063*pt))}
+  add EfficiencyFormula {5} {0.72*tanh(0.0345*pt)*(1/(1+0.00077*pt))}
+  
+}
+
+###########
+# Gen jet b-tagging
+###########
+
+module BTagging GenBTagging {
+  set JetInputArray GenJetFinder/jets
+
+  set BitNumber 0
+
+  # add EfficiencyFormula {abs(PDG code)} {efficiency formula as a function of eta and pt}
+  # PDG code = the highest PDG code of a quark or gluon inside DeltaR cone around jet axis
+  # gluon's PDG code has the lowest priority
+
+  # based on arXiv:1211.4462
+
+  # default efficiency formula (misidentification rate)
+  add EfficiencyFormula {0} {0.0}
+
+  # efficiency formula for c-jets (misidentification rate)
+  add EfficiencyFormula {4} {0.0}
+
+  # efficiency formula for b-jets
+  add EfficiencyFormula {5} {1.0}
 }
 
 #############
