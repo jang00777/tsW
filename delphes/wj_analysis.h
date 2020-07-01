@@ -90,12 +90,13 @@ TClonesArray *tracks = 0;
 
 //declare global variables
 std::vector<const GenParticle*> m_genQuark;
-std::map<int, struct TruthHad> m_genHadron;
 std::vector<struct Lepton> m_genLepton;
+std::vector<struct RecoJet> m_matchedJet;
+std::vector<struct RecoHad> m_recoHad;
+
+std::map<int, struct TruthHad> m_genHadron;
 std::map<int, Jet*> m_selectedJet;
 std::map<int, Jet*> m_selectedBJet;
-std::vector<RecoJet> m_matchedJet;
-std::vector<RecoHad> m_recoHad;
 bool m_hadPreCut = false;
 std::string m_decayChannel;
 
@@ -103,6 +104,8 @@ std::string m_decayChannel;
 // Link between event tree and other trees
 int   b_had_start,      b_had_end;
 int   b_jet_start,      b_jet_end;
+int   b_multimatchedS,  b_unmatchedS; 
+int   b_multimatchedB,  b_unmatchedB, b_jetOverlap;
 
 //  EventSelection()
 TLorentzVector b_recoLep1, b_recoLep2;
@@ -115,12 +118,19 @@ float b_dilepton_mass;
 int   b_dilepton_ch, b_channel, b_step;
 
 int sc = 0; int bc = 0; int bh = 0;int sh = 0; int tot = 0; int mat1 = 0; int mat2 = 0;
+int testS = 0; int testB = 0;
 
 // FillJetTree() and FillHadTree()
-bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep;
+bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep,    b_isOverlap;
 float b_pt,               b_eta,              b_phi,              b_mass,         b_ptD,              b_radiusInEta, b_radiusInPhi;
 int   b_pdgId,            b_cMult,            b_nMult,            b_flavorAlgo,   b_flavorPhys,       b_bTag,        b_bTagAlgo,    b_bTagPhys, b_tauTag, b_isFrom;
+float b_cpt1,             b_cpt2,             b_cpt3,             b_cptA;
+float b_npt1,             b_npt2,             b_npt3,             b_nptA;
 float b_tauWeight;
+
+std::vector<float> b_constituent_pt,     b_constituent_eta,  b_constituent_phi;
+std::vector<int>   b_constituent_charge, b_constituent_type;
+
 
 float b_had_pt,           b_had_eta,          b_had_phi,          b_had_mass,     b_had_x,            b_had_dr;
 int   b_had_pdgId,        b_had_isFrom,       b_had_nMatched;
@@ -153,7 +163,12 @@ void ResetBranch(){
     m_selectedJet.clear(); m_selectedBJet.clear(); m_matchedJet.clear();
     m_recoHad.clear();
 
-    b_recoLep1.SetPtEtaPhiM(0,0,0,0); b_recoLep2.SetPtEtaPhiM(0,0,0,0);
+    //m_genQuark.shrink_to_fit(); 
+    //m_matchedJet.shrink_to_fit(); 
+    //m_recoHad.shrink_to_fit(); 
+    //m_genLepton.shrink_to_fit(); 
+
+    b_recoLep1.SetPtEtaPhiM(-99,-99,-99,-99); b_recoLep2.SetPtEtaPhiM(-99,-99,-99,-99);
     b_recoLep1_pdgId = -99; b_recoLep2_pdgId = -99;
     b_nJet           = -9;  b_nBJet          = - 9;
     b_MET            = -99;
@@ -165,6 +180,9 @@ void ResetBranch(){
     b_dilepton_mass = -99; b_dilepton_ch = 0; b_step = 0;
 
     b_channel = -1;
+    b_multimatchedS = -1;  b_unmatchedS = -1; b_jetOverlap = -1;
+    b_multimatchedB = -1;  b_unmatchedB = -1;
+
 }
 
 void ResetHadValues() {
@@ -196,10 +214,16 @@ void ResetHadValues() {
 }
 
 void ResetJetValues() {
-  b_isSelectedJet  = false; b_hasHighestPt     = false;  b_hasClosestLep = false;
-  b_pt             = -99;   b_eta              = -99;    b_phi           = -99;   b_mass        = -99; b_ptD         = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
-  b_pdgId          = -99;   b_cMult            = -99;    b_nMult         = -99;   b_flavorAlgo  = -99; b_flavorPhys  = -99; b_bTag        = -99; b_bTagAlgo    = -99; b_bTagPhys = -99; b_tauTag = -99; b_isFrom = -99;
+  b_isSelectedJet  = false; b_hasHighestPt     = false;  b_hasClosestLep = false; b_isOverlap   = false;
+  b_pt             = -99;   b_eta              = -99;    b_phi           = -99;   b_mass        = -99;   b_ptD         = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
+  b_pdgId          = -99;   b_cMult            = -99;    b_nMult         = -99;   b_flavorAlgo  = -99;   b_flavorPhys  = -99; b_bTag        = -99; b_bTagAlgo    = -99; b_bTagPhys = -99; b_tauTag = -99; b_isFrom = -99;
+  b_cpt1           = -99;   b_cpt2             = -99;    b_cpt3          = -99;   b_cptA        = -99;
+  b_npt1           = -99;   b_npt2             = -99;    b_npt3          = -99;   b_nptA        = -99;
   b_tauWeight      = -99;
+
+  b_constituent_pt.clear();     b_constituent_eta.clear();  b_constituent_phi.clear(); 
+  b_constituent_charge.clear(); b_constituent_type.clear();
+
   ResetHadValues();
 }
 
@@ -245,7 +269,7 @@ void DefBranch(TTree* outtr);
 void SetJetBranch(TTree* tr);
 void SetHadBranch(TTree* tr);
 
-const GenParticle* getLast(TClonesArray * particles, const GenParticle* p);
+const GenParticle* getLast(TClonesArray * particles, const GenParticle* p, TString type);
 std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenParticle* p);
 std::vector<int> getMomIdxList(TClonesArray * particles, const GenParticle* p);
 
@@ -269,6 +293,9 @@ void SetHadValues(TTree*, int,TLorentzVector jet_tlv = TLorentzVector(0, 0, 0, 0
 std::map<int, Jet*> JetSelection(TClonesArray* jets, std::vector<struct Lepton> recoLep);
 std::map<int, Jet*> BJetSelection(std::map<int, Jet*> selJets);
 
+std::vector<float> CollectJetConstituentPt(Jet* jet, TString type = "charged");
+void CollectJetConstituentInfo(Jet* jet);
+
 //define functions
 void DefBranch(TTree* outtr){
   BranchI(nJet);           BranchI(nBJet);
@@ -282,6 +309,10 @@ void DefBranch(TTree* outtr){
   BranchF(dilepton_mass);
   BranchI(dilepton_ch);
   BranchI(channel);
+
+  BranchI(multimatchedS); BranchI(unmatchedS); BranchI(jetOverlap);
+  BranchI(multimatchedB); BranchI(unmatchedB);
+
 }
 
 void SetJetBranch(TTree* tr) {
@@ -289,6 +320,7 @@ void SetJetBranch(TTree* tr) {
   tr->Branch("hasHighestPt",     &b_hasHighestPt,     "hasHighestPt/O");
   tr->Branch("hasClosestLep",    &b_hasClosestLep,    "hasClosestLep/O");
   tr->Branch("isFrom",           &b_isFrom,           "isFrom/I");
+  tr->Branch("isOverlap",        &b_isOverlap,        "isOverlap/O");
   tr->Branch("pt",               &b_pt,               "pt/F");
   tr->Branch("eta",              &b_eta,              "eta/F");
   tr->Branch("phi",              &b_phi,              "phi/F");
@@ -306,6 +338,21 @@ void SetJetBranch(TTree* tr) {
   tr->Branch("bTagPhys",         &b_bTagPhys,         "bTagPhys/I");
   tr->Branch("tauTag",           &b_tauTag,           "tauTag/I");
   tr->Branch("tauWeight",        &b_tauWeight,        "tauWeight/F");
+  tr->Branch("cpt1",             &b_cpt1,             "cpt1/F");
+  tr->Branch("cpt2",             &b_cpt2,             "cpt2/F");
+  tr->Branch("cpt3",             &b_cpt3,             "cpt3/F");
+  tr->Branch("cptA",             &b_cptA,             "cptA/F");
+  tr->Branch("npt1",             &b_npt1,             "npt1/F");
+  tr->Branch("npt2",             &b_npt2,             "npt2/F");
+  tr->Branch("npt3",             &b_npt3,             "npt3/F");
+  tr->Branch("nptA",             &b_nptA,             "nptA/F");
+
+  tr->Branch("constituent_pt",     "vector<float>", &b_constituent_pt); // For neutral particle, pt = Et
+  tr->Branch("constituent_eta",    "vector<float>", &b_constituent_eta);
+  tr->Branch("constituent_phi",    "vector<float>", &b_constituent_phi);
+  tr->Branch("constituent_charge", "vector<int>",   &b_constituent_charge); 
+  tr->Branch("constituent_type",   "vector<int>",   &b_constituent_type); // Neutral hadron : 0, Charged hadron : 1, Electron and Muon : Abs. value of their PID
+
   SetHadBranch(tr);
 }
 
@@ -418,14 +465,24 @@ void SetCutValues(UInt_t channel){
 
 }
 
-const GenParticle* getLast(TClonesArray * particles, const GenParticle* p){
-  auto mom = p;
-  while(true){
-    auto dau = (const GenParticle*)particles->At(mom->D1);
-    if( abs(p->PID) != abs(dau->PID) ) break;
-    mom = dau;
+const GenParticle* getLast(TClonesArray * particles, const GenParticle* p, TString type = "TopDown"){
+  if (type.Contains("TopDown")) {
+    auto mom = p;
+    while(true){
+      auto dau = (const GenParticle*)particles->At(mom->D1);
+      if( abs(p->PID) != abs(dau->PID) ) break;
+      mom = dau;
+    }
+    return mom;
+  } else if (type.Contains("BottomUp")) {
+    auto dau = p;
+    while(true){
+      auto mom = (const GenParticle*)particles->At(dau->M1);
+      if( abs(p->PID) != abs(mom->PID) ) break;
+      dau = mom;
+    }
+    return dau;
   }
-  return mom;
 }
 
 std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenParticle* p){
@@ -435,6 +492,7 @@ std::vector<const GenParticle*> getMomList(TClonesArray * particles, const GenPa
   if (idx == -1) return mlst;
   while(true){
     auto m = (const GenParticle*)particles->At(idx);
+    m = getLast(particles, p, "BottomUp");
     mlst.push_back(m);
     if (m->M1 == -1 ) break;
     else idx = m->M1;
