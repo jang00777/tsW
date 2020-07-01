@@ -676,10 +676,10 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_phi.push_back(np->Phi); 
       b_constituent_charge.push_back(0);
       b_constituent_type.push_back(0);
-      b_constituent_D0.push_back(-1);
-      b_constituent_D0Err.push_back(-1);
-      b_constituent_DZ.push_back(-1);
-      b_constituent_DZErr.push_back(-1);
+      b_constituent_D0.push_back(-99);
+      b_constituent_D0Err.push_back(-99);
+      b_constituent_DZ.push_back(-99);
+      b_constituent_DZErr.push_back(-99);
     }
   }
 }
