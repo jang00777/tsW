@@ -555,7 +555,7 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
 
     if (m_selectedJet[i] != 0) { // check if the i-th jet is selected jet from event selection 
       b_isSelectedJet = true;
-    }
+    } else continue;
     for ( auto j = 0; j < m_matchedJet.size(); ++j ) {
       if (m_matchedJet[j].idx == i) { // check if the i-th jet is jet which matched to gen s/b quark from top-quark
         b_isFrom        = m_matchedJet[j].gen_pdgid;
@@ -658,6 +658,10 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_eta.push_back(cp->Eta); 
       b_constituent_phi.push_back(cp->Phi); 
       b_constituent_charge.push_back(cp->Charge);
+      b_constituent_D0.push_back(cp->D0);
+      b_constituent_D0Err.push_back(cp->ErrorD0);
+      b_constituent_DZ.push_back(cp->DZ);
+      b_constituent_DZErr.push_back(cp->ErrorDZ);
       if (abs(cp->PID) == 11 || abs(cp->PID) == 13) {
         b_constituent_type.push_back(abs(cp->PID));
       } else {
@@ -672,6 +676,10 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_phi.push_back(np->Phi); 
       b_constituent_charge.push_back(0);
       b_constituent_type.push_back(0);
+      b_constituent_D0.push_back(-99);
+      b_constituent_D0Err.push_back(-99);
+      b_constituent_DZ.push_back(-99);
+      b_constituent_DZErr.push_back(-99);
     }
   }
 }
