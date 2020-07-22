@@ -12,9 +12,10 @@
 #include "TClonesArray.h"
 #include "TTreeReader.h"
 #include "TTreeReaderValue.h"
+#include "TMVA/Reader.h"
 
 #include "classes/DelphesClasses.h"
-#include "wj_analysis.h"
+#include "vtsAnalyserDelphes.h"
 
 using namespace std;
 
@@ -39,17 +40,6 @@ int main(int argc, char* argv[])
   auto inFile = TFile::Open(inf.c_str(), "READ");
   auto inTree = (TTree*) inFile->Get("Delphes");
   inTree->SetBranchStatus("*", true);
-
-  //inTree->SetBranchStatus("GenJet",      true);
-  //inTree->SetBranchStatus("Particle",    true);
-  //inTree->SetBranchStatus("Electron",    true);
-  //inTree->SetBranchStatus("Muon",        true);
-  //inTree->SetBranchStatus("Jet",         true);
-  //inTree->SetBranchStatus("MissingET",   true);
-  //inTree->SetBranchStatus("Track",       true);
-  //inTree->SetBranchStatus("Tower",       true);
-  //inTree->SetBranchStatus("GenParticle", true);
-
   inTree->SetBranchAddress("GenJet",      &gen_jets);
   inTree->SetBranchAddress("Particle",    &particles);
   inTree->SetBranchAddress("Electron",    &electrons);
@@ -71,6 +61,7 @@ int main(int argc, char* argv[])
   TString cutflow_title   = "cutflow" + inf;
   TH1F * cutflow          = new TH1F("cutflow", cutflow_title, 7,-1,6); // -1 : all events, 0 : events after lepton selection, 1~ : events after step
 
+  SetMVAReader();
   //Event Loop Start!
   for (size_t iev = 0; iev < inTree->GetEntries(); ++iev){
     if (iev%1000 == 0 ) cout << "event check    iev    ----> " << iev << endl;
@@ -83,7 +74,8 @@ int main(int argc, char* argv[])
     HadronReconstruction();
     HadronPreselection(m_recoHad);
     FindTruthMatchedHadron();
-    FillJetTree(jets, jettr, "pT");
+    //FillJetTree(jets, jettr, "pT");
+    FillJetTree(jets, jettr, "BDT");
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
     outtr->Fill();
@@ -432,11 +424,11 @@ void HadronPreselection(std::vector<RecoHad> recoHad) {
   // Preselection cuts for reconstructed hadrons
   // Not fully implemented yet
   for (auto i=0; i < recoHad.size(); ++i) {
-    recoHad[i].isSelected = false;
+    recoHad[i].isPreSelected = false;
     if (fabs(recoHad[i].tlv.Eta()) > 2.5) continue;
     if (recoHad[i].dau1_tlv.Pt() < 0.95 || recoHad[i].dau2_tlv.Pt() < 0.95) continue;
     //if (recoHad[i].dau1_D0Sig    < 5.   || recoHad[i].dau2_D0Sig    < 5.)   continue;
-    else recoHad[i].isSelected = true;
+    else recoHad[i].isPreSelected = true;
   }
 }
 
@@ -497,8 +489,10 @@ void FindTruthMatchedHadron() {
   }
 }
 
-int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
-  int hIdx = -1;
+int FindMatchedHadron(TLorentzVector jet_tlv, TString method, TTree* jettr) {
+  int   hIdx = -1;
+  int   prevPdgId   = -99;
+  float maxDeltaScore  = -99999.;
   float maxBDTScore = -1;
   float highestPt   = -1;
   float lowestDot   = 99999999.;
@@ -507,16 +501,32 @@ int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
     auto had_tlv = m_recoHad[i].tlv;
     auto dR      = had_tlv.DeltaR(jet_tlv);
     if (abs(m_recoHad[i].pdgid) != 310 && abs(m_recoHad[i].pdgid) != 3122) continue;
-    if (m_hadPreCut && !m_recoHad[i].isSelected) continue;
+    if (m_hadPreCut && !m_recoHad[i].isPreSelected) continue;
     if (dR > cut_JetConeSizeOverlap) continue;
 
     if (method == "BDT") { // The method isn't constructed yet
-      cout << "BDT ==> Work in progress" << endl;
-      // auto hadBDTScore = m_hadReader->EvaluateMVA("KS_BDT");
-      // if (hadBDTScore > maxBDTScore) {
-      //   maxBDTScore = hadBDTScore;
-      //   hIdx = i;
-      // }
+
+      SetHadValues(jettr, i, jet_tlv); // Load hadron values temporarily for scoring
+
+      float had_bdtScore = -99.;
+      float deltaScore   = -99999.;
+      if (abs(m_recoHad[i].pdgid) == 310)  { had_bdtScore = m_hadReader->EvaluateMVA("KS_BDT");     deltaScore = (had_bdtScore - KsBDTCut)/fabs(KsBDTCut); }
+      if (abs(m_recoHad[i].pdgid) == 3122) { had_bdtScore = m_hadReader->EvaluateMVA("Lambda_BDT"); deltaScore  = (had_bdtScore - LambdaBDTCut)/fabs(LambdaBDTCut); }
+      if (maxBDTScore < had_bdtScore) {
+        if (abs(m_recoHad[i].pdgid) != abs(prevPdgId)) { // If pdgId is different, check how far the score is from the optimal cut of the particle type and choose more greater one that means more real-like
+          if (maxDeltaScore < deltaScore) {
+            prevPdgId     = m_recoHad[i].pdgid;
+            maxDeltaScore = deltaScore;
+            maxBDTScore   = had_bdtScore;
+            hIdx = i;
+          }
+        } else {
+          maxBDTScore = had_bdtScore;
+          hIdx = i;
+        }
+      }
+      //if (abs(m_recoHad[i].pdgid) == 310)  cout << setw(5) << i << " th had_bdtScore : " << setw(10) << had_bdtScore << " maxBDTScore : " << setw(10) << maxBDTScore << " pdgId : " << setw(6) << m_recoHad[i].pdgid << " prevPdgId : " << setw(6) << prevPdgId << " delta Optcut : " << setw(10) << (had_bdtScore - KsBDTCut)/fabs(KsBDTCut)         << " maxDelta : " << setw(10) << maxDeltaScore << endl;
+      //if (abs(m_recoHad[i].pdgid) == 3122) cout << setw(5) << i << " th had_bdtScore : " << setw(10) << had_bdtScore << " maxBDTScore : " << setw(10) << maxBDTScore << " pdgId : " << setw(6) << m_recoHad[i].pdgid << " prevPdgId : " << setw(6) << prevPdgId << " delta Optcut : " << setw(10) << (had_bdtScore - LambdaBDTCut)/fabs(LambdaBDTCut) << " maxDelta : " << setw(10) << maxDeltaScore << endl;
     }
     if (method == "pT" || method == "pt") { // pT matching
       auto hadronPt = had_tlv.Pt();
@@ -540,6 +550,8 @@ int FindMatchedHadron(TLorentzVector jet_tlv, TString method) {
     }
 
   }
+  if (method == "BDT") ResetHadValues(); // clean hadron values loaded temporarily for evaluating a BDT score
+
   if (hIdx != -1) m_recoHad[hIdx].isJetMatched = true;
   return hIdx;
 } 
@@ -571,10 +583,17 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
     if (abs(b_isFrom) == 5 && b_hasClosestLep) bc +=1;
 
     if (b_hasHighestPt == true) nHigh += 1;
-    auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod); // check if reco. hadron(Ks or lambda0) is inside the i-th jet according to a matching method
+    auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod, jettr); // check if reco. hadron(Ks or lambda0) is inside the i-th jet according to a matching method, if you use "BDT" method, tree arg. should be imported into the function
     SetJetValues(jet);
     if (hIdx != -1) {
       SetHadValues(jettr, hIdx, jet_tlv); // if there is a reco. hadron within the i-th jet, then get information of reco. hadron
+      if (abs(b_had_pdgId) == 310) {
+        b_had_bdt_score       = m_hadReader->EvaluateMVA("KS_BDT");
+        b_had_isSelectedByMVA = (b_had_bdt_score > KsBDTCut);
+      } else if (abs(b_had_pdgId) == 3122) {
+        b_had_bdt_score       = m_hadReader->EvaluateMVA("Lambda_BDT");
+        b_had_isSelectedByMVA = (b_had_bdt_score > LambdaBDTCut);
+      }
     }
     jettr->Fill();
   }
@@ -587,6 +606,13 @@ void FillHadTree(TTree* hadtr) {
   for ( unsigned i = 0; i < m_recoHad.size(); ++i){
     ResetHadValues();
     SetHadValues(hadtr, i);
+    if (abs(b_had_pdgId) == 310) {
+      b_had_bdt_score       = m_hadReader->EvaluateMVA("KS_BDT");
+      b_had_isSelectedByMVA = (b_had_bdt_score > KsBDTCut);
+    } else if (abs(b_had_pdgId) == 3122) {
+      b_had_bdt_score       = m_hadReader->EvaluateMVA("Lambda_BDT");
+      b_had_isSelectedByMVA = (b_had_bdt_score > LambdaBDTCut);
+    }
     hadtr->Fill();
   }
   b_had_end = hadtr->GetEntries();
@@ -650,6 +676,15 @@ std::vector<float> CollectJetConstituentPt(Jet* jet, TString type) {
 }
 
 void CollectJetConstituentInfo(Jet* jet) {
+  //cout << " nGenHadron : " << setw(4) << m_genHadron.size() << endl;
+  //int n = 0;
+  //for (auto it = m_genHadron.begin(); it != m_genHadron.end(); ++it) {
+  //  auto i = it->second;
+  //  n += 1;
+  //  if (i.pdgid == 0) continue;
+  //  cout << setw(4) << n << " th genHad : " << setw(6) << i.pdgid  << " dau1 : "      << setw(6) << i.dau1_pdgid << " dau2 : "    << setw(6) << i.dau2_pdgid 
+  //                       << " isFrom : "    << setw(6) << i.isFrom << " isFromTop : " << setw(6) << i.isFromTop  << " isFromW : " << setw(6) << i.isFromW << endl;
+  //}
   for (auto j=0; j < jet->Constituents.GetEntriesFast(); ++j) {
     auto object = jet->Constituents.At(j);
     if (object->IsA() == Track::Class()) {
@@ -662,11 +697,31 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_D0Err.push_back(cp->ErrorD0);
       b_constituent_DZ.push_back(cp->DZ);
       b_constituent_DZErr.push_back(cp->ErrorDZ);
+      b_constituent_CtgTheta.push_back(cp->CtgTheta);
       if (abs(cp->PID) == 11 || abs(cp->PID) == 13) {
         b_constituent_type.push_back(abs(cp->PID));
       } else {
         b_constituent_type.push_back(1);
       }
+      auto genp = (GenParticle*) cp->Particle.GetObject();
+      if (abs(m_genHadron[genp->M1].pdgid) == 310) { 
+        b_constituent_isFromKs.push_back(true);
+        b_constituent_isKsFrom.push_back(m_genHadron[genp->M1].isFrom);
+        if (m_genHadron[genp->M1].isFromTop)                                    b_constituent_isKsFromTop.push_back(true);
+        else                                                                    b_constituent_isKsFromTop.push_back(false);
+        if (m_genHadron[genp->M1].isFromW)                                      b_constituent_isKsFromW.push_back(true);
+        else                                                                    b_constituent_isKsFromW.push_back(false);
+        if (!m_genHadron[genp->M1].isFromTop && !m_genHadron[genp->M1].isFromW) b_constituent_isKsFromOther.push_back(true);
+        else                                                                    b_constituent_isKsFromOther.push_back(false);
+      } else { 
+        b_constituent_isFromKs.push_back(false);
+        b_constituent_isKsFrom.push_back(-99);
+        b_constituent_isKsFromTop.push_back(false);
+        b_constituent_isKsFromW.push_back(false);
+        b_constituent_isKsFromOther.push_back(false);
+      }
+      if (abs(genp->PID) == 211) b_constituent_isChargedPion.push_back(true);
+      else                       b_constituent_isChargedPion.push_back(false);
     }
     if (object->IsA() == Tower::Class()) {
       auto np = (Tower*) object;
@@ -680,6 +735,14 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_D0Err.push_back(-99);
       b_constituent_DZ.push_back(-99);
       b_constituent_DZErr.push_back(-99);
+      b_constituent_CtgTheta.push_back(-99);
+      b_constituent_isFromKs.push_back(false);
+      b_constituent_isChargedPion.push_back(false);
+      b_constituent_isFromKs.push_back(false);
+      b_constituent_isKsFrom.push_back(-99);
+      b_constituent_isKsFromTop.push_back(false);
+      b_constituent_isKsFromW.push_back(false);
+      b_constituent_isKsFromOther.push_back(false);
     }
   }
 }
@@ -689,49 +752,49 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
     b_had_x = m_recoHad[i].tlv.Pt()/jet_tlv.Pt();
     b_had_dr           = m_recoHad[i].tlv.DeltaR(jet_tlv);
   }
-  b_had_pt           = m_recoHad[i].tlv.Pt();
-  b_had_eta          = m_recoHad[i].tlv.Eta();
-  b_had_phi          = m_recoHad[i].tlv.Phi();
-  b_had_mass         = m_recoHad[i].tlv.M();
-  b_had_pdgId        = m_recoHad[i].pdgid;
-  b_had_isFrom       = m_recoHad[i].isFrom;
-  b_had_isSelected   = m_recoHad[i].isSelected;
-  b_had_isJetMatched = m_recoHad[i].isJetMatched;
-  b_dau1_pdgId       = m_recoHad[i].dau1_pdgid;
-  b_dau1_pt          = m_recoHad[i].dau1_tlv.Pt();
-  b_dau1_eta         = m_recoHad[i].dau1_tlv.Eta();
-  b_dau1_phi         = m_recoHad[i].dau1_tlv.Phi();
-  b_dau1_mass        = m_recoHad[i].dau1_tlv.M();
-  b_dau2_pdgId       = m_recoHad[i].dau2_pdgid;
-  b_dau2_pt          = m_recoHad[i].dau2_tlv.Pt();
-  b_dau2_eta         = m_recoHad[i].dau2_tlv.Eta();
-  b_dau2_phi         = m_recoHad[i].dau2_tlv.Phi();
-  b_dau2_mass        = m_recoHad[i].dau2_tlv.M();
-  auto dau1          = (Track*) tracks->At(m_recoHad[i].dau1_idx);
-  auto dau2          = (Track*) tracks->At(m_recoHad[i].dau2_idx);
-  b_dau1_D0          = dau1->D0;
-  b_dau1_DZ          = dau1->DZ;
-  b_dau1_ctgTheta    = dau1->CtgTheta;
-  b_dau1_ptErr       = dau1->ErrorPT;
-  b_dau1_phiErr      = dau1->ErrorPhi;
-  b_dau1_D0Err       = dau1->ErrorD0;
-  b_dau1_DZErr       = dau1->ErrorDZ;
-  b_dau1_ctgThetaErr = dau1->ErrorCtgTheta;
-  b_dau1_D0Sig       = dau1->D0/dau1->ErrorD0;
-  b_dau1_DZSig       = dau1->DZ/dau1->ErrorDZ;
-  b_dau2_D0          = dau2->D0;
-  b_dau2_DZ          = dau2->DZ;
-  b_dau2_ctgTheta    = dau2->CtgTheta;
-  b_dau2_ptErr       = dau2->ErrorPT;
-  b_dau2_phiErr      = dau2->ErrorPhi;
-  b_dau2_D0Err       = dau2->ErrorD0;
-  b_dau2_DZErr       = dau2->ErrorDZ;
-  b_dau2_ctgThetaErr = dau2->ErrorCtgTheta;
-  b_dau2_D0Sig       = dau2->D0/dau2->ErrorD0;
-  b_dau2_DZSig       = dau2->DZ/dau2->ErrorDZ;
+  b_had_pt            = m_recoHad[i].tlv.Pt();
+  b_had_eta           = m_recoHad[i].tlv.Eta();
+  b_had_phi           = m_recoHad[i].tlv.Phi();
+  b_had_mass          = m_recoHad[i].tlv.M();
+  b_had_pdgId         = m_recoHad[i].pdgid;
+  b_had_isFrom        = m_recoHad[i].isFrom;
+  b_had_isPreSelected = m_recoHad[i].isPreSelected;
+  b_had_isJetMatched  = m_recoHad[i].isJetMatched;
+  b_dau1_pdgId        = m_recoHad[i].dau1_pdgid;
+  b_dau1_pt           = m_recoHad[i].dau1_tlv.Pt();
+  b_dau1_eta          = m_recoHad[i].dau1_tlv.Eta();
+  b_dau1_phi          = m_recoHad[i].dau1_tlv.Phi();
+  b_dau1_mass         = m_recoHad[i].dau1_tlv.M();
+  b_dau2_pdgId        = m_recoHad[i].dau2_pdgid;
+  b_dau2_pt           = m_recoHad[i].dau2_tlv.Pt();
+  b_dau2_eta          = m_recoHad[i].dau2_tlv.Eta();
+  b_dau2_phi          = m_recoHad[i].dau2_tlv.Phi();
+  b_dau2_mass         = m_recoHad[i].dau2_tlv.M();
+  auto dau1           = (Track*) tracks->At(m_recoHad[i].dau1_idx);
+  auto dau2           = (Track*) tracks->At(m_recoHad[i].dau2_idx);
+  b_dau1_D0           = dau1->D0;
+  b_dau1_DZ           = dau1->DZ;
+  b_dau1_ctgTheta     = dau1->CtgTheta;
+  b_dau1_ptErr        = dau1->ErrorPT;
+  b_dau1_phiErr       = dau1->ErrorPhi;
+  b_dau1_D0Err        = dau1->ErrorD0;
+  b_dau1_DZErr        = dau1->ErrorDZ;
+  b_dau1_ctgThetaErr  = dau1->ErrorCtgTheta;
+  b_dau1_D0Sig        = dau1->D0/dau1->ErrorD0;
+  b_dau1_DZSig        = dau1->DZ/dau1->ErrorDZ;
+  b_dau2_D0           = dau2->D0;
+  b_dau2_DZ           = dau2->DZ;
+  b_dau2_ctgTheta     = dau2->CtgTheta;
+  b_dau2_ptErr        = dau2->ErrorPT;
+  b_dau2_phiErr       = dau2->ErrorPhi;
+  b_dau2_D0Err        = dau2->ErrorD0;
+  b_dau2_DZErr        = dau2->ErrorDZ;
+  b_dau2_ctgThetaErr  = dau2->ErrorCtgTheta;
+  b_dau2_D0Sig        = dau2->D0/dau2->ErrorD0;
+  b_dau2_DZSig        = dau2->DZ/dau2->ErrorDZ;
   if (m_genHadron.size() != 0) { // Start filling truth matched information
-    auto genDau1     = (GenParticle*) dau1->Particle.GetObject();
-    auto genDau2     = (GenParticle*) dau2->Particle.GetObject();
+    auto genDau1      = (GenParticle*) dau1->Particle.GetObject();
+    auto genDau2      = (GenParticle*) dau2->Particle.GetObject();
     if ((genDau1->M1 == genDau2->M1) && m_genHadron[genDau1->M1].pdgid == m_recoHad[i].pdgid) { 
       // m_recoHad is a set of reconstructed hadron candidates wihch are reconstructed from 2 reco. daughters (Track obejcts, See HadronReconstruction() function) 
       // if reco. hadrons's 2 daughter's gen. information indicates same mother particle(genDau1->M1 == genDau2->M2), then we can say hadron paring is done well.
@@ -778,3 +841,40 @@ void SetHadValues(TTree* tr, int i, TLorentzVector jet_tlv) {
 
 std::vector<float> collectHadron(std::vector<GenParticle> hadInJet, bool motherCheck){
 }
+
+void SetMVAReader() {
+  #define TMVABranch_(reader, name) reader->AddVariable(#name, &(b_##name));
+  #define hadTMVABranch(name) TMVABranch_(m_hadReader,name);
+  #define jetTMVABranch(name) TMVABranch_(m_jetReader,name);
+  #define jksTMVABranch(name) TMVABranch_(m_jksReader,name);
+
+  m_hadReader = new TMVA::Reader();
+  hadTMVABranch(had_pt);       
+  hadTMVABranch(had_eta);      
+  hadTMVABranch(had_phi);      
+  hadTMVABranch(dau1_pt);      
+  hadTMVABranch(dau1_eta);     
+  hadTMVABranch(dau1_phi);     
+  hadTMVABranch(dau1_ctgTheta);
+  hadTMVABranch(dau1_D0);      
+  hadTMVABranch(dau1_DZ);      
+  hadTMVABranch(dau1_D0Sig);   
+  hadTMVABranch(dau1_DZSig);   
+  hadTMVABranch(dau2_pt);      
+  hadTMVABranch(dau2_eta);     
+  hadTMVABranch(dau2_phi);     
+  hadTMVABranch(dau2_ctgTheta);
+  hadTMVABranch(dau2_D0);      
+  hadTMVABranch(dau2_DZ);      
+  hadTMVABranch(dau2_D0Sig);   
+  hadTMVABranch(dau2_DZSig);   
+  m_hadReader->BookMVA("KS_BDT", tmvaWeight_Ks);
+  m_hadReader->BookMVA("Lambda_BDT", tmvaWeight_Lambda);
+  //m_jetReader = new TMVA::Reader();
+  //jetTMVABranch(ptD); jetTMVABranch(area); jetTMVABranch(CSVV2);
+  //m_jetReader->BookMVA("Jet_BDT_highest", tmvaWeight_Jet);
+
+  //m_jksReader = new TMVA::Reader();
+  //m_jksReader->BookMVA("JKS_BDT_highest", tmvaWeight_JKS);
+}
+

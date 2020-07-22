@@ -1,0 +1,8 @@
+./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_bbars_2l_FxFx
+./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_bsbar_2l_FxFx
+
+#./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_bsbar_1lm_FxFx
+#./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_bsbar_1lp_FxFx
+#./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_sbbar_1lm_FxFx
+#./submit_prod_gen_pythia_limitCylinder_noVtxSmearing.sh tt012j_sbbar_1lp_FxFx
+
