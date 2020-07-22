@@ -17,6 +17,12 @@ inTree = inFile.Get("MVA_had")
 inFile = TFile("input/delphes_tt012j_bbars_2l_FxFx_elIso03_muIso04_newResForm_noVtxSmearing_20200316.root")
 inTree = inFile.Get("Delphes")
 
+inFile = TFile("input/delphes_tt012j_bbars_2l_elIso03_muIso04_noVtxSmearing_newResForm_trackSmearing_20200511.root")
+inTree = inFile.Get("Delphes")
+
+#inFile = TFile("../delphes_result/sum_tt012j_bbars_bsbar_2l_FxFx_elIso03_muIso04_newResForm_trackSmearing.root")
+#inTree = inFile.Get("MVA_had")
+
 def getMotherList(tree, gen) :
     motherList = []
     idx = gen.M1
@@ -40,7 +46,7 @@ opt_draw_other = "norm hist same"
 
 binning = [100, 0, 300]
 binEta  = [100, 0, 3.5]
-if inFile.GetName().find("delphes_") != -1 :
+if inFile.GetName().split("/")[-1].find("delphes_") != -1 :
     if sys.argv[1].find("pion") != -1:
         outf = TFile(outf_path+now_time+"_D0Check.root", "RECREATE")
         c = TCanvas("c", "c", 1920, 1080)
@@ -57,8 +63,8 @@ if inFile.GetName().find("delphes_") != -1 :
         h7  = TH1D("D0SigRecoPionFromKs", "Significance of D0 of Reco Pions;|D0 Significance|;Entries",         *binning)
         h8  = TH1D("D0SigRecoPionFromKs", "Significance of D0 of Reco Pions From Ks;|D0 Significance|;Entries", *binning)
 
-        for iev in range(1000):#range(nentries):
-            print("[ {0:>6} / {1:>6} ] th Entry".format(str(iev), str(nentries)))
+        for iev in range(nentries):
+            if iev % 40000 == 0 : print("[ {0:>6} / {1:>6} ] th Entry".format(str(iev), str(nentries)))
             inTree.GetEntry(iev)
             # Gen
             for i in range(len(inTree.Particle)):
@@ -131,7 +137,7 @@ if inFile.GetName().find("delphes_") != -1 :
         h6.Draw("same")
         tl2.Draw("same")
 
-        c.cd(4)
+        c.cd(1)
         gPad.SetLogy(1)
         gStyle.SetOptStat(0)
         h7.SetLineColor(4)
@@ -161,13 +167,13 @@ if inFile.GetName().find("delphes_") != -1 :
         binningDS   = [100,    0,  200]
         binningDE   = [100,    0,    1]
 
-        binningPtP  = [100, -0.5,  0.5]
-        binningEtaP = [100, -0.5,  0.5]
-        binningPhiP = [100,   -5,    5]
+        binningPtP  = [100, -0.1,  0.1]
+        binningEtaP = [100, -0.1,  0.1]
+        binningPhiP = [100, -0.4,  0.4]
 
-        binningPtR  = [100, -0.5,  0.5]
-        binningEtaR = [100, -0.5,  0.5]
-        binningPhiR = [100,   -5,    5]
+        binningPtR  = [100, -0.1,  0.1]
+        binningEtaR = [100, -0.1,  0.1]
+        binningPhiR = [100,   -2,    2]
 
 
         binningPt2    = binningPt   + binningPt
@@ -237,6 +243,7 @@ if inFile.GetName().find("delphes_") != -1 :
         hPHIPDSc = TH2D("hPHIPDSc",  "Reco Ks D0 sig vs Pull of phi w D0 sig > 5 cut;Pull_{#phi};D0_{sig}",         *binningPhiPDS)
         hPHIRDSc = TH2D("hPHIRDSc",  "Reco Ks D0 sig vs Residual of phi w D0 sig > 5 cut;Residual_{#phi};D0_{sig}", *binningPhiRDS)
 
+        hMADS2  = TH2D("hMADS2",  "All Reco Ks D0 sig vs mass w/o D0 sig > 5 cut;Reco mass (GeV);D0_{sig}",      *binningMassDS)
 
         h1  = TH1D("h1",  "TruthMatched Ks pt     w/o D0 sig cut > 5;Ks p_{T} (GeV);Entries", *binningPt)
         h2  = TH1D("h2",  "TruthMatched Ks eta    w/o D0 sig cut > 5;Ks |#eta|;Entries",      *binningEta)
@@ -245,6 +252,8 @@ if inFile.GetName().find("delphes_") != -1 :
         h5  = TH1D("h5",  "TruthMatched Ks D0;D0  w/o D0 sig cut > 5;Entries",                *binningD0)
         h6  = TH1D("h6",  "TruthMatched Ks D0 sig w/o D0 sig cut > 5;D0_{sig};Entries",       *binningDS)
 
+        h4_2  = TH1D("h4_2",  "All Reco Ks mass   w/o D0 sig cut > 5;Ks mass (GeV);Entries",  *binningMass)
+
         h1c = TH1D("h1c", "TruthMatched Ks pt     w D0 sig > 5 cut;Ks p_{T} (GeV);Entries",   *binningPt)
         h2c = TH1D("h2c", "TruthMatched Ks eta    w D0 sig > 5 cut;Ks |#eta|;Entries",        *binningEta)
         h3c = TH1D("h3c", "TruthMatched Ks phi    w D0 sig > 5 cut;Ks |#phi|;Entries",        *binningPhi)
@@ -252,8 +261,16 @@ if inFile.GetName().find("delphes_") != -1 :
         h5c = TH1D("h5c", "TruthMatched Ks D0     w D0 sig > 5 cut;D0;Entries",               *binningD0)
         h6c = TH1D("h6c", "TruthMatched Ks D0 sig w D0 sig > 5 cut;D0_{sig};Entries",         *binningDS)
 
-        for iev in range(10000):#range(nentries):
-            print("[ {0:>6} / {1:>6} ] th Entry".format(str(iev), str(nentries)))
+        hPionPTPDS   = TH2D("hPionPTPDS",   "Reco Pion D0 sig vs Pull of pT w/o D0 sig > 5 cut;Pull_{p_{T}};D0_{sig}",         *binningPtPDS)
+        hPionPTRDS   = TH2D("hPionPTRDS",   "Reco Pion D0 sig vs Residual of pT w/o D0 sig > 5 cut;Residual_{p_{T}};D0_{sig}", *binningPtRDS)
+        hPionETAPDS  = TH2D("hPionETAPDS",  "Reco Pion D0 sig vs Pull of eta w/o D0 sig > 5 cut;Pull_{#eta};D0_{sig}",         *binningEtaPDS)
+        hPionETARDS  = TH2D("hPionETARDS",  "Reco Pion D0 sig vs Residual of eta w/o D0 sig > 5 cut;Residual_{#eta};D0_{sig}", *binningEtaRDS)
+        hPionPHIPDS  = TH2D("hPionPHIPDS",  "Reco Pion D0 sig vs Pull of phi w/o D0 sig > 5 cut;Pull_{#phi};D0_{sig}",         *binningPhiPDS)
+        hPionPHIRDS  = TH2D("hPionPHIRDS",  "Reco Pion D0 sig vs Residual of phi w/o D0 sig > 5 cut;Residual_{#phi};D0_{sig}", *binningPhiRDS)
+
+
+        for iev in range(nentries):
+            if iev % 40000 == 0 : print("[ {0:>6} / {1:>6} ] th Entry".format(str(iev), str(nentries)))
             inTree.GetEntry(iev)
             # Reco
             for i in range(len(inTree.Track)):
@@ -268,16 +285,28 @@ if inFile.GetName().find("delphes_") != -1 :
                     if abs(dau2.PID) == 11 or abs(dau2.PID) == 13 : continue
                     dau1_tlv = TLorentzVector()
                     dau2_tlv = TLorentzVector()
-                    dau1_tlv.SetPtEtaPhiM(dau1.PT, dau1.Eta, dau1.Phi, pionMass_)
-                    dau2_tlv.SetPtEtaPhiM(dau2.PT, dau2.Eta, dau2.Phi, pionMass_)
+
+                    genDau1 = dau1.Particle.GetObject()
+                    genDau2 = dau2.Particle.GetObject()
+
+                    dau1_tlv.SetPtEtaPhiM(dau1.PT, dau1.Eta, genDau1.Phi, pionMass_)
+                    dau2_tlv.SetPtEtaPhiM(dau2.PT, dau2.Eta, genDau2.Phi, pionMass_)
                     had_tlv  = dau1_tlv + dau2_tlv
                     if abs(had_tlv.M() - ksMass_)/float(ksMass_) < 0.3 : 
                         #print("Invariant mass cut (0.3) : " + str(abs(had_tlv.M() - ksMass_)/float(ksMass_)))
-                        genDau1 = dau1.Particle.GetObject()
-                        genDau2 = dau2.Particle.GetObject()
+                        #genDau1 = dau1.Particle.GetObject()
+                        #genDau2 = dau2.Particle.GetObject()
+                        if dau1.ErrorD0 != 0 : hMADS2.Fill(had_tlv.M(),  abs(dau1.D0/dau1.ErrorD0))
+                        if dau2.ErrorD0 != 0 : hMADS2.Fill(had_tlv.M(),  abs(dau2.D0/dau2.ErrorD0))
+
+                        h4_2.Fill(had_tlv.M())
+
                         if genDau1.M1 == genDau2.M1 and inTree.Particle[genDau1.M1].PID == 310:
-                            genDau1_tlv = genDau1.P4()
-                            genDau2_tlv = genDau2.P4()
+                            genDau1_tlv = TLorentzVector()
+                            genDau2_tlv = TLorentzVector()
+                            genDau1_tlv.SetPtEtaPhiM(genDau1.PT, genDau1.Eta, genDau1.Phi, genDau1.Mass) 
+                            genDau2_tlv.SetPtEtaPhiM(genDau2.PT, genDau2.Eta, genDau2.Phi, genDau2.Mass) 
+
                             genHad_tlv = genDau1_tlv + genDau2_tlv
                             hGenMAD0.Fill(genHad_tlv.M(), abs(dau1.D0)) 
                             hGenMAD0.Fill(genHad_tlv.M(), abs(dau2.D0))
@@ -315,7 +344,15 @@ if inFile.GetName().find("delphes_") != -1 :
                                 hETAPDS.Fill((had_tlv.Eta()-genHad_tlv.Eta()),                  abs(dau1.D0/dau1.ErrorD0))  
                                 hETARDS.Fill((had_tlv.Eta()-genHad_tlv.Eta())/genHad_tlv.Eta(), abs(dau1.D0/dau1.ErrorD0))  
                                 hPHIPDS.Fill((had_tlv.Phi()-genHad_tlv.Phi()),                  abs(dau1.D0/dau1.ErrorD0))  
-                                hPHIRDS.Fill((had_tlv.Phi()-genHad_tlv.Phi())/genHad_tlv.Phi(), abs(dau1.D0/dau1.ErrorD0))   
+                                hPHIRDS.Fill((had_tlv.Phi()-genHad_tlv.Phi())/genHad_tlv.Phi(), abs(dau1.D0/dau1.ErrorD0))  
+
+                                hPionPTPDS.Fill((dau1_tlv.Pt()-genDau1_tlv.Pt()),                     abs(dau1.D0/dau1.ErrorD0))
+                                hPionPTRDS.Fill((dau1_tlv.Pt()-genDau1_tlv.Pt())/genDau1_tlv.Pt(),     abs(dau1.D0/dau1.ErrorD0))
+                                hPionETAPDS.Fill((dau1_tlv.Eta()-genDau1_tlv.Eta()),                  abs(dau1.D0/dau1.ErrorD0))
+                                hPionETARDS.Fill((dau1_tlv.Eta()-genDau1_tlv.Eta())/genDau1_tlv.Eta(), abs(dau1.D0/dau1.ErrorD0))
+                                hPionPHIPDS.Fill((dau1_tlv.Phi()-genDau1_tlv.Phi()),                  abs(dau1.D0/dau1.ErrorD0))
+                                hPionPHIRDS.Fill((dau1_tlv.Phi()-genDau1_tlv.Phi())/genDau1_tlv.Phi(), abs(dau1.D0/dau1.ErrorD0))
+ 
                             if dau2.ErrorD0 != 0 : 
                                 h6.Fill(abs(dau2.D0/dau2.ErrorD0))
                                 hGenMADS.Fill(genHad_tlv.M(),  abs(dau2.D0/dau2.ErrorD0))
@@ -331,6 +368,14 @@ if inFile.GetName().find("delphes_") != -1 :
                                 hETARDS.Fill((had_tlv.Eta()-genHad_tlv.Eta())/genHad_tlv.Eta(), abs(dau2.D0/dau2.ErrorD0))
                                 hPHIPDS.Fill((had_tlv.Phi()-genHad_tlv.Phi()),                  abs(dau2.D0/dau2.ErrorD0))
                                 hPHIRDS.Fill((had_tlv.Phi()-genHad_tlv.Phi())/genHad_tlv.Phi(), abs(dau2.D0/dau2.ErrorD0))
+
+                                hPionPTPDS.Fill((dau2_tlv.Pt()-genDau2_tlv.Pt()),                     abs(dau2.D0/dau2.ErrorD0))
+                                hPionPTRDS.Fill((dau2_tlv.Pt()-genDau2_tlv.Pt())/genDau2_tlv.Pt(),     abs(dau2.D0/dau2.ErrorD0))
+                                hPionETAPDS.Fill((dau2_tlv.Eta()-genDau2_tlv.Eta()),                  abs(dau2.D0/dau2.ErrorD0))
+                                hPionETARDS.Fill((dau2_tlv.Eta()-genDau2_tlv.Eta())/genDau2_tlv.Eta(), abs(dau2.D0/dau2.ErrorD0))
+                                hPionPHIPDS.Fill((dau2_tlv.Phi()-genDau2_tlv.Phi()),                  abs(dau2.D0/dau2.ErrorD0))
+                                hPionPHIRDS.Fill((dau2_tlv.Phi()-genDau2_tlv.Phi())/genDau2_tlv.Phi(), abs(dau2.D0/dau2.ErrorD0))
+
                             if dau1.ErrorD0 != 0 and dau2.ErrorD0 != 0 :
                                 if abs(dau1.D0/dau1.ErrorD0) > 5 and abs(dau2.D0/dau2.ErrorD0) > 5 :
                                     hPTc.Fill(had_tlv.Pt(),   genKs.PT)

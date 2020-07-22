@@ -14,8 +14,8 @@ export ROOT_INCLUDE_PATH=${DELPHES_HOME}/external:${ROOT_INCLUDE_PATH}
 #samples=("tt012j_bsbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx")
 #samples=("tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
 #samples=("tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
-samples=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx" "tt012j_bbbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx") 
-#samples=("tt012j_bbbar_2l_FxFx")
+samples=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx" "tt012j_bbbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx" "tt012j_bbbar_1lp_FxFx") 
+#samples=("tt012j_bbbar_1lp_FxFx")
 #samples=("tt012j_bsbar_2l_FxFx" "tt012j_bsbar_1lm_FxFx" "tt012j_bsbar_1lp_FxFx" "tt012j_sbbar_1lm_FxFx" "tt012j_sbbar_1lp_FxFx")
 #dilep=("tt012j_bbars_2l_FxFx" "tt012j_bsbar_2l_FxFx")
 #samples=$2
@@ -44,14 +44,14 @@ for s in ${samples[@]}; do
         fi
         if [[ $f -nt delphes_result/${sample_full}/`basename $f` ]]; then
             echo "Processing " $f
-            ./wj_analysis $f delphes_result/${sample_full}/$OUT ${decay_ch} 
+            ./vtsAnalyserDelphes $f delphes_result/${sample_full}/$OUT ${decay_ch} 
         else
             echo "Not processing" $f
         fi
     done
 done
 
-#./wj_analysis /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/tt012j_bsbar_2l_FxFx_elIso03_muIso04/tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root delphes_result/out_tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root ${decay_ch}
-#./wj_analysis /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/tt012j_bsbar_2l_FxFx_elIso03_muIso04/tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root delphes_result/out_test.root ${decay_ch}
+#./vtsAnalyserDelphes /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/tt012j_bsbar_2l_FxFx_elIso03_muIso04/tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root delphes_result/out_tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root ${decay_ch}
+#./vtsAnalyserDelphes /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/delphes_ttbar/tt012j_bsbar_2l_FxFx_elIso03_muIso04/tt012j_bsbar_2l_FxFx_elIso03_muIso04_0.root delphes_result/out_test.root ${decay_ch}
 
-#./wj_analysis /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/test/decay_filter.root delphes_result/out_test.root ${decay_ch}
+#./vtsAnalyserDelphes /home/wjang/CMSSW_9_3_9_patch1/src/DelphesRun/test/decay_filter.root delphes_result/out_test.root ${decay_ch}
