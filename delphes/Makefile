@@ -13,8 +13,8 @@
 #wj_analysis_track : wj_analysis_track.cxx
 #	g++ -g -std=c++1y -o wj_analysis_track wj_analysis_track.cxx -L/code/MG5_aMC_v2_6_0/Delphes/ -I../../install/include `root-config --cflags --libs` -I/code/MG5_aMC_v2_6_0/Delphes/ -I/code/MG5_aMC_v2_6_0/Delphes/external -lEG -lDelphes
 
-wj_analysis : wj_analysis.cxx
-	g++ -g -std=c++1y -o wj_analysis wj_analysis.cxx -I../../Delphes -I../../Delphes/external `root-config --cflags --libs` -L ../../Delphes/ -lDelphes -lEG
+vtsAnalyserDelphes : vtsAnalyserDelphes.cxx
+	g++ -g -std=c++1y -o vtsAnalyserDelphes vtsAnalyserDelphes.cxx -I../../Delphes -I../../Delphes/external `root-config --cflags --libs` -L ../../Delphes/ -lDelphes -lTMVA -lEG
 
 #pythia_tqW : pythia_tqW.cc
 ##	g++ pythia_tqW.cc -o pythia_tqW `/code/MG5_aMC_v2_6_0/HEPTools/pythia8/bin/pythia8-config --cflags --libs` -I/code/MG5_aMC_v2_6_0/HEPTools/hepmc/include -L/code/MG5_aMC_v2_6_0/HEPTools/hepmc/lib -lHepMC -ldl
