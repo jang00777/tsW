@@ -25,25 +25,25 @@ void addJetVariable(TMVA::DataLoader *dataloader) {
   dataloader->AddVariable("nMult",       'I');
   dataloader->AddVariable("radiusInEta", 'F');
   dataloader->AddVariable("radiusInPhi", 'F');
-  dataloader->AddVariable("area := 3.14159*radiusInEta*radiusInPhi", 'F');
+  //dataloader->AddVariable("area := 3.14159*radiusInEta*radiusInPhi", 'F');
   //dataloader->AddVariable("ptD",         'F');
-  dataloader->AddVariable("cpt1",        'F');
-  dataloader->AddVariable("cpt2",        'F');
-  dataloader->AddVariable("cpt3",        'F');
-  dataloader->AddVariable("cptA",        'F');
-  dataloader->AddVariable("npt1",        'F');
-  dataloader->AddVariable("npt2",        'F');
-  dataloader->AddVariable("npt3",        'F');
-  dataloader->AddVariable("nptA",        'F');
+  //dataloader->AddVariable("cpt1",        'F');
+  //dataloader->AddVariable("cpt2",        'F');
+  //dataloader->AddVariable("cpt3",        'F');
+  //dataloader->AddVariable("cptA",        'F');
+  //dataloader->AddVariable("npt1",        'F');
+  //dataloader->AddVariable("npt2",        'F');
+  //dataloader->AddVariable("npt3",        'F');
+  //dataloader->AddVariable("nptA",        'F');
 
-  dataloader->AddVariable("c_x1 := cpt1/pt",        'F');
-  dataloader->AddVariable("c_x2 := cpt2/pt",        'F');
+  //dataloader->AddVariable("c_x1 := cpt1/pt",        'F');
+  //dataloader->AddVariable("c_x2 := cpt2/pt",        'F');
   dataloader->AddVariable("c_x3 := cpt3/pt",        'F');
-  dataloader->AddVariable("c_xA := cptA/pt",        'F');
-  dataloader->AddVariable("n_x1 := npt1/pt",        'F');
-  dataloader->AddVariable("n_x2 := npt2/pt",        'F');
+  //dataloader->AddVariable("c_xA := cptA/pt",        'F');
+  //dataloader->AddVariable("n_x1 := npt1/pt",        'F');
+  //dataloader->AddVariable("n_x2 := npt2/pt",        'F');
   dataloader->AddVariable("n_x3 := npt3/pt",        'F');
-  dataloader->AddVariable("n_xA := nptA/pt",        'F');
+  //dataloader->AddVariable("n_xA := nptA/pt",        'F');
 
 
 }
@@ -79,6 +79,7 @@ void addHadVariablePP(TMVA::DataLoader *dataloader) {
   dataloader->AddVariable("dau2_DZ",    'F');
   dataloader->AddVariable("dau2_D0Sig", 'F');
   dataloader->AddVariable("dau2_DZSig", 'F');
+  dataloader->AddVariable("had_bdt_score", 'F');
 
 }
 
@@ -276,32 +277,52 @@ int TMVA_JetDiscrimination( TString myMethodList = "" )
   TCut cut_bJet        = "abs(isFrom) == 5";
   TCut cut_allJet      = "abs(isFrom) != 3";
 
-  TCut cut_selectedJet = "isSelectedJet == 1";
-  TCut cut_highestPt   = "hasHighestPt  == 1";
-  TCut cut_closestLep  = "hasClosestLep == 1";
+  TCut cut_selectedJet = "isSelectedJet";
+  TCut cut_highestPt   = "hasHighestPt";
+  TCut cut_closestLep  = "hasClosestLep";
   TCut cut_recoKs      = "abs(had_pdgId) == 310";
   TCut cut_trueKs      = "abs(had_pdgId) == 310 && abs(genHad_pdgId) == 310";
   TCut cut_noHad       = "had_pdgId == -99";
 
+  TCut cut_KsBDT_DL    = "had_bdt_score >= 0.0078";
+  //TCut cut_KsBDT_SL    = "had_bdt_score >= 0.0078";
+
   TCut avoid_overflow  = "fabs(dau1_D0Sig) < 1000000 && fabs(dau2_D0Sig) < 1000000 && fabs(dau1_DZSig) < 1000000 && fabs(dau1_DZSig) < 1000000";
 
   /* Jet w/ Ks */
-  auto cut_JKS_s_highest = cut_sJet   + cut_selectedJet + cut_highestPt  + cut_recoKs + avoid_overflow;
-  auto cut_JKS_b_highest = cut_bJet   + cut_selectedJet + cut_highestPt  + cut_recoKs + avoid_overflow;
-  auto cut_JKS_n_highest = cut_allJet + cut_selectedJet + cut_highestPt  + cut_recoKs + avoid_overflow;
+  //auto cut_JKS_s_highest = cut_sJet   && cut_selectedJet && cut_highestPt  && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
+  //auto cut_JKS_b_highest = cut_bJet   && cut_selectedJet && cut_highestPt  && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
+  //auto cut_JKS_n_highest = cut_allJet && cut_selectedJet && cut_highestPt  && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
 
-  auto cut_JKS_s_closest = cut_sJet   + cut_selectedJet + cut_closestLep + cut_recoKs + avoid_overflow;
-  auto cut_JKS_b_closest = cut_bJet   + cut_selectedJet + cut_closestLep + cut_recoKs + avoid_overflow;
-  auto cut_JKS_n_closest = cut_allJet + cut_selectedJet + cut_closestLep + cut_recoKs + avoid_overflow;
+  //auto cut_JKS_s_closest = cut_sJet   && cut_selectedJet && cut_closestLep && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
+  //auto cut_JKS_b_closest = cut_bJet   && cut_selectedJet && cut_closestLep && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
+  //auto cut_JKS_n_closest = cut_allJet && cut_selectedJet && cut_closestLep && cut_recoKs && cut_KsBDT_DL                   && avoid_overflow;
+
+  ///* Jet w/o hadron */
+  //auto cut_Jet_s_highest = cut_sJet   && cut_selectedJet && cut_highestPt  && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+  //auto cut_Jet_b_highest = cut_bJet   && cut_selectedJet && cut_highestPt  && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+  //auto cut_Jet_n_highest = cut_allJet && cut_selectedJet && cut_highestPt  && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+
+  //auto cut_Jet_s_closest = cut_sJet   && cut_selectedJet && cut_closestLep && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+  //auto cut_Jet_b_closest = cut_bJet   && cut_selectedJet && cut_closestLep && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+  //auto cut_Jet_n_closest = cut_allJet && cut_selectedJet && cut_closestLep && (cut_noHad || (cut_recoKs && !cut_KsBDT_DL)) && avoid_overflow;
+
+  auto cut_JKS_s_highest = cut_sJet   && cut_selectedJet && cut_highestPt  && cut_recoKs && avoid_overflow;
+  auto cut_JKS_b_highest = cut_bJet   && cut_selectedJet && cut_highestPt  && cut_recoKs && avoid_overflow;
+  auto cut_JKS_n_highest = cut_allJet && cut_selectedJet && cut_highestPt  && cut_recoKs && avoid_overflow;
+
+  auto cut_JKS_s_closest = cut_sJet   && cut_selectedJet && cut_closestLep && cut_recoKs && avoid_overflow;
+  auto cut_JKS_b_closest = cut_bJet   && cut_selectedJet && cut_closestLep && cut_recoKs && avoid_overflow;
+  auto cut_JKS_n_closest = cut_allJet && cut_selectedJet && cut_closestLep && cut_recoKs && avoid_overflow;
 
   /* Jet w/o hadron */
-  auto cut_Jet_s_highest = cut_sJet   + cut_selectedJet + cut_highestPt  + cut_noHad + avoid_overflow;
-  auto cut_Jet_b_highest = cut_bJet   + cut_selectedJet + cut_highestPt  + cut_noHad + avoid_overflow;
-  auto cut_Jet_n_highest = cut_allJet + cut_selectedJet + cut_highestPt  + cut_noHad + avoid_overflow;
+  auto cut_Jet_s_highest = cut_sJet   && cut_selectedJet && cut_highestPt  && cut_noHad && avoid_overflow;
+  auto cut_Jet_b_highest = cut_bJet   && cut_selectedJet && cut_highestPt  && cut_noHad && avoid_overflow;
+  auto cut_Jet_n_highest = cut_allJet && cut_selectedJet && cut_highestPt  && cut_noHad && avoid_overflow;
 
-  auto cut_Jet_s_closest = cut_sJet   + cut_selectedJet + cut_closestLep + cut_noHad + avoid_overflow;
-  auto cut_Jet_b_closest = cut_bJet   + cut_selectedJet + cut_closestLep + cut_noHad + avoid_overflow;
-  auto cut_Jet_n_closest = cut_allJet + cut_selectedJet + cut_closestLep + cut_noHad + avoid_overflow;
+  auto cut_Jet_s_closest = cut_sJet   && cut_selectedJet && cut_closestLep && cut_noHad && avoid_overflow;
+  auto cut_Jet_b_closest = cut_bJet   && cut_selectedJet && cut_closestLep && cut_noHad && avoid_overflow;
+  auto cut_Jet_n_closest = cut_allJet && cut_selectedJet && cut_closestLep && cut_noHad && avoid_overflow;
 
   /* Args for Jet w/o hadron */
   TString opt = "SplitMode=Random:NormMode=NumEvents:!V";
@@ -311,16 +332,16 @@ int TMVA_JetDiscrimination( TString myMethodList = "" )
   bool flag_had=false;
 
   /* JKS Events */
-  setModel(Use, factory, s_vs_n_JKS_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_n_highest );
-  setModel(Use, factory, s_vs_n_JKS_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_n_closest );
-  setModel(Use, factory, s_vs_b_JKS_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_b_highest );
-  setModel(Use, factory, s_vs_b_JKS_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_b_closest );
+  setModel(Use, factory, s_vs_n_JKS_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_n_highest, opt, sig_ratio, bkg_ratio);
+//setModel(Use, factory, s_vs_n_JKS_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_n_closest, opt, sig_ratio, bkg_ratio);
+  setModel(Use, factory, s_vs_b_JKS_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_b_highest, opt, sig_ratio, bkg_ratio);
+//setModel(Use, factory, s_vs_b_JKS_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_b_closest, opt, sig_ratio, bkg_ratio);
 
   /* Jet w/o hadron */
-  setModel(Use, factory, s_vs_n_Jet_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_n_highest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
-  setModel(Use, factory, s_vs_n_Jet_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_n_closest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
-  setModel(Use, factory, s_vs_b_Jet_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_highest, cut_JKS_b_highest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
-  setModel(Use, factory, s_vs_b_Jet_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_JKS_s_closest, cut_JKS_b_closest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
+  setModel(Use, factory, s_vs_n_Jet_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_Jet_s_highest, cut_Jet_n_highest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
+//setModel(Use, factory, s_vs_n_Jet_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_Jet_s_closest, cut_Jet_n_closest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
+  setModel(Use, factory, s_vs_b_Jet_BDT_highest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_Jet_s_highest, cut_Jet_b_highest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
+//setModel(Use, factory, s_vs_b_Jet_BDT_closest, dilep_bbars_bsbar_tree, dilep_bbars_bsbar_tree, signalWeight, backgroundWeight, cut_Jet_s_closest, cut_Jet_b_closest, opt, sig_ratio, bkg_ratio, flag_jet, flag_had);
 
   // For an example of the category classifier usage, see: TMVA_JetDiscriminationCategory
   //
