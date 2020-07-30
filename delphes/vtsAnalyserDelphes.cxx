@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
     HadronPreselection(m_recoHad);
     FindTruthMatchedHadron();
     //FillJetTree(jets, jettr, "pT");
-    FillJetTree(jets, jettr, "BDT");
+    FillJetTree(jets, jettr, "pT");
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
     outtr->Fill();
@@ -427,7 +427,9 @@ void HadronPreselection(std::vector<RecoHad> recoHad) {
     recoHad[i].isPreSelected = false;
     if (fabs(recoHad[i].tlv.Eta()) > 2.5) continue;
     if (recoHad[i].dau1_tlv.Pt() < 0.95 || recoHad[i].dau2_tlv.Pt() < 0.95) continue;
-    //if (recoHad[i].dau1_D0Sig    < 5.   || recoHad[i].dau2_D0Sig    < 5.)   continue;
+    auto hadDau1 = (Track*) tracks->At(recoHad[i].dau1_idx);
+    auto hadDau2 = (Track*) tracks->At(recoHad[i].dau2_idx);
+    if ((hadDau1->D0/hadDau1->ErrorD0) < 5. || (hadDau2->D0/hadDau2->ErrorD0) < 5.) continue;
     else recoHad[i].isPreSelected = true;
   }
 }
