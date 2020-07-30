@@ -79,8 +79,7 @@ void addHadVariablePP(TMVA::DataLoader *dataloader) {
   dataloader->AddVariable("dau2_DZ",    'F');
   dataloader->AddVariable("dau2_D0Sig", 'F');
   dataloader->AddVariable("dau2_DZSig", 'F');
-  dataloader->AddVariable("had_bdt_score", 'F');
-
+  //dataloader->AddVariable("had_bdt_score", 'F');
 }
 
 void addTree(TMVA::DataLoader *dataloader, TTree* sig, TTree* bkg, Double_t sigW = 1.0, Double_t bkgW = 1.0) {
@@ -225,7 +224,8 @@ int TMVA_JetDiscrimination( TString myMethodList = "" )
   TFile *dilep_bbars_bsbar(0); 
 
   //TString base_path = "/hdfs/store/user/wjang/delphes_result/";
-  TString base_path = "/home/wjang/CMSSW_9_3_9_patch1/src/tsW/delphes/delphes_result/";
+  //TString base_path = "/home/wjang/CMSSW_9_3_9_patch1/src/tsW/delphes/delphes_result/";
+  TString base_path = "/home/wjang/CMSSW_9_3_9_patch1/src/tsW/delphes/delphes_result_hadron_jet_pt_matching/";
 
   TString sample_dilep_bbars       = base_path+"sum_tt012j_bbars_2l_FxFx_elIso03_muIso04_newResForm_trackSmearing.root";
   TString sample_dilep_bsbar       = base_path+"sum_tt012j_bsbar_2l_FxFx_elIso03_muIso04_newResForm_trackSmearing.root";
@@ -245,23 +245,23 @@ int TMVA_JetDiscrimination( TString myMethodList = "" )
   TTree *dilep_bbars_bsbar_tree = (TTree*)dilep_bbars_bsbar->Get("MVA_jet");
 
   // Create a ROOT output file where TMVA will store ntuples, histograms, etc.
-  TString outfileName( "./output/TMVA_JetDiscrimination.root" );
+  TString outfileName( "./output/PTMAT_TMVA_JetDiscrimination.root" );
   TFile* outputFile = TFile::Open( outfileName, "RECREATE" );
 
   TMVA::Factory *factory = new TMVA::Factory( "TMVA_JetDiscrimination", outputFile,
 //                                              "!V:!Silent:Color:DrawProgressBar:Transformations=I;D;P;G,D:AnalysisType=Classification" );
                                               "!V:!Silent:Color:DrawProgressBar:Transformations=I:AnalysisType=Classification" );
   /* JKS Events */
-  TMVA::DataLoader *s_vs_n_JKS_BDT_highest = new TMVA::DataLoader("s_vs_n_JKS_BDT_highest");
-  TMVA::DataLoader *s_vs_n_JKS_BDT_closest = new TMVA::DataLoader("s_vs_n_JKS_BDT_closest");
-  TMVA::DataLoader *s_vs_b_JKS_BDT_highest = new TMVA::DataLoader("s_vs_b_JKS_BDT_highest");
-  TMVA::DataLoader *s_vs_b_JKS_BDT_closest = new TMVA::DataLoader("s_vs_b_JKS_BDT_closest");
+  TMVA::DataLoader *s_vs_n_JKS_BDT_highest = new TMVA::DataLoader("PTMAT_s_vs_n_JKS_BDT_highest");
+  TMVA::DataLoader *s_vs_n_JKS_BDT_closest = new TMVA::DataLoader("PTMAT_s_vs_n_JKS_BDT_closest");
+  TMVA::DataLoader *s_vs_b_JKS_BDT_highest = new TMVA::DataLoader("PTMAT_s_vs_b_JKS_BDT_highest");
+  TMVA::DataLoader *s_vs_b_JKS_BDT_closest = new TMVA::DataLoader("PTMAT_s_vs_b_JKS_BDT_closest");
 
   /* Jet w/o hadron Events */
-  TMVA::DataLoader *s_vs_n_Jet_BDT_highest = new TMVA::DataLoader("s_vs_n_Jet_BDT_highest");
-  TMVA::DataLoader *s_vs_n_Jet_BDT_closest = new TMVA::DataLoader("s_vs_n_Jet_BDT_closest");
-  TMVA::DataLoader *s_vs_b_Jet_BDT_highest = new TMVA::DataLoader("s_vs_b_Jet_BDT_highest");
-  TMVA::DataLoader *s_vs_b_Jet_BDT_closest = new TMVA::DataLoader("s_vs_b_Jet_BDT_closest");
+  TMVA::DataLoader *s_vs_n_Jet_BDT_highest = new TMVA::DataLoader("PTMAT_s_vs_n_Jet_BDT_highest");
+  TMVA::DataLoader *s_vs_n_Jet_BDT_closest = new TMVA::DataLoader("PTMAT_s_vs_n_Jet_BDT_closest");
+  TMVA::DataLoader *s_vs_b_Jet_BDT_highest = new TMVA::DataLoader("PTMAT_s_vs_b_Jet_BDT_highest");
+  TMVA::DataLoader *s_vs_b_Jet_BDT_closest = new TMVA::DataLoader("PTMAT_s_vs_b_Jet_BDT_closest");
 
 
   //    (TMVA::gConfig().GetVariablePlotting()).fTimesRMS = 8.0;
