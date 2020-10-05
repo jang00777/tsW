@@ -105,7 +105,7 @@ std::vector<struct RecoHad> m_recoHad;
 std::map<int, struct TruthHad> m_genHadron;
 std::map<int, Jet*> m_selectedJet;
 std::map<int, Jet*> m_selectedBJet;
-bool m_hadPreCut = false;
+bool m_hadPreCut = true;
 std::string m_decayChannel;
 
 TMVA::Reader *m_hadReader;
