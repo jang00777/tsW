@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
     //cout << " ============================================ " << endl;
     MatchingGenJet();
     HadronReconstruction();
-    HadronPreselection(m_recoHad);
+    HadronPreselection();//(m_recoHad);
     FindTruthMatchedHadron();
     //FillJetTree(jets, jettr, "pT");
     FillJetTree(jets, jettr, "pT");
@@ -377,12 +377,14 @@ void HadronReconstruction() {
     if (hadCand1->Charge != 1) continue; // Only pick positive charge
     if (abs(hadCand1->PID) == 11 || abs(hadCand1->PID) == 13) continue; // Exclude leptons
     if (hadCand1->PT < tkPTCut_) continue;
+    if (fabs(hadCand1->Eta) > tkEtaCut_) continue;
     if (fabs(hadCand1->D0/hadCand1->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
     for (auto j = 0; j < tracks->GetEntries(); ++j) {
       auto hadCand2 = (Track*) tracks->At(j);
       if (hadCand2->Charge != -1) continue; // Only pick negative charge
       if (abs(hadCand2->PID) == 11 || abs(hadCand2->PID) == 13) continue; // Exclude leptons
       if (hadCand2->PT < tkPTCut_) continue;
+      if (fabs(hadCand2->Eta) > tkEtaCut_) continue;
       if (fabs(hadCand2->D0/hadCand2->ErrorD0) < tkIPSigXYCut_) continue; // Cut of siginifcance of transverse impact parametr
 
       TLorentzVector dauCand1_pion_tlv;   
@@ -420,17 +422,17 @@ void HadronReconstruction() {
   }
 }
 
-void HadronPreselection(std::vector<RecoHad> recoHad) {
+void HadronPreselection(){//(std::vector<RecoHad> recoHad) {
   // Preselection cuts for reconstructed hadrons
   // Not fully implemented yet
-  for (auto i=0; i < recoHad.size(); ++i) {
-    recoHad[i].isPreSelected = false;
-    if (fabs(recoHad[i].tlv.Eta()) > 2.5) continue;
-    if (recoHad[i].dau1_tlv.Pt() < 0.95 || recoHad[i].dau2_tlv.Pt() < 0.95) continue;
-    auto hadDau1 = (Track*) tracks->At(recoHad[i].dau1_idx);
-    auto hadDau2 = (Track*) tracks->At(recoHad[i].dau2_idx);
-    if ((hadDau1->D0/hadDau1->ErrorD0) < 5. || (hadDau2->D0/hadDau2->ErrorD0) < 5.) continue;
-    else recoHad[i].isPreSelected = true;
+  for (auto i=0; i < m_recoHad.size(); ++i) {
+    m_recoHad[i].isPreSelected = false;
+    if (fabs(m_recoHad[i].tlv.Eta()) > 2.5) continue;
+    if (m_recoHad[i].dau1_tlv.Pt() < 0.95 || m_recoHad[i].dau2_tlv.Pt() < 0.95) continue;
+    //auto hadDau1 = (Track*) tracks->At(m_recoHad[i].dau1_idx);
+    //auto hadDau2 = (Track*) tracks->At(m_recoHad[i].dau2_idx);
+    //if (fabs(hadDau1->D0/hadDau1->ErrorD0) < 5. || fabs(hadDau2->D0/hadDau2->ErrorD0) < 5.) continue; // <- D0Sig cut( ==2sig) is applied already in HadronReconstruction !
+    else m_recoHad[i].isPreSelected = true;
   }
 }
 
@@ -627,7 +629,7 @@ void SetJetValues(Jet* jet) {
   b_mass             = jet->Mass;
   b_radiusInEta      = jet->DeltaEta;
   b_radiusInPhi      = jet->DeltaPhi;
-  b_ptD              = jet->PTD;
+  //b_ptD              = jet->PTD;
   b_cMult            = jet->NCharged;
   b_nMult            = jet->NNeutrals;
   b_pdgId            = jet->Flavor;
@@ -687,10 +689,38 @@ void CollectJetConstituentInfo(Jet* jet) {
   //  cout << setw(4) << n << " th genHad : " << setw(6) << i.pdgid  << " dau1 : "      << setw(6) << i.dau1_pdgid << " dau2 : "    << setw(6) << i.dau2_pdgid 
   //                       << " isFrom : "    << setw(6) << i.isFrom << " isFromTop : " << setw(6) << i.isFromTop  << " isFromW : " << setw(6) << i.isFromW << endl;
   //}
+
+  // Parameters for Quark gluon jet variables
+  float sum_dpt    = 0, sum_dpt2    = 0, sum_deta   = 0, sum_deta2   = 0, sum_dphi   = 0, sum_dphi2   = 0, sum_detadphi   = 0;  
+  float sum_c_dpt  = 0, sum_c_dpt2  = 0, sum_c_deta = 0, sum_c_deta2 = 0, sum_c_dphi = 0, sum_c_dphi2 = 0, sum_c_detadphi = 0; 
+  float sum_n_dpt  = 0, sum_n_dpt2  = 0, sum_n_deta = 0, sum_n_deta2 = 0, sum_n_dphi = 0, sum_n_dphi2 = 0, sum_n_detadphi = 0; 
+  float ave_deta   = 0, ave_deta2   = 0, ave_dphi   = 0, ave_dphi2   = 0;
+  float ave_c_deta = 0, ave_c_deta2 = 0, ave_c_dphi = 0, ave_c_dphi2 = 0;
+  float ave_n_deta = 0, ave_n_deta2 = 0, ave_n_dphi = 0, ave_n_dphi2 = 0;
+
   for (auto j=0; j < jet->Constituents.GetEntriesFast(); ++j) {
     auto object = jet->Constituents.At(j);
     if (object->IsA() == Track::Class()) {
-      auto cp = (Track*) object;
+      auto  cp   = (Track*) object;
+      float pt2  = cp->PT * cp->PT;
+      float deta = (cp->Eta - jet->Eta);
+      float dphi = DeltaPhi(cp->Phi, jet->Phi);
+      sum_dpt        += cp->PT;
+      sum_dpt2       += pt2;
+      sum_deta       += deta*pt2;
+      sum_deta2      += deta*deta*pt2;
+      sum_dphi       += dphi*pt2;
+      sum_dphi2      += dphi*dphi*pt2;
+      sum_detadphi   += deta*dphi*pt2;
+
+      sum_c_dpt      += cp->PT;
+      sum_c_dpt2     += pt2;
+      sum_c_deta     += deta*pt2;
+      sum_c_deta2    += deta*deta*pt2;
+      sum_c_dphi     += dphi*pt2;
+      sum_c_dphi2    += dphi*dphi*pt2;
+      sum_c_detadphi += deta*dphi*pt2;
+
       b_constituent_pt.push_back(cp->PT); 
       b_constituent_eta.push_back(cp->Eta); 
       b_constituent_phi.push_back(cp->Phi); 
@@ -726,8 +756,27 @@ void CollectJetConstituentInfo(Jet* jet) {
       else                       b_constituent_isChargedPion.push_back(false);
     }
     if (object->IsA() == Tower::Class()) {
-      auto np = (Tower*) object;
+      auto  np   = (Tower*) object;
       if (np->ET < 1.0) continue;
+      float pt2  = np->ET * np->ET;
+      float deta = (np->Eta - jet->Eta);
+      float dphi = DeltaPhi(np->Phi, jet->Phi);
+      sum_dpt        += np->ET;
+      sum_dpt2       += pt2;
+      sum_deta       += deta*pt2;
+      sum_deta2      += deta*deta*pt2;
+      sum_dphi       += dphi*pt2;
+      sum_dphi2      += dphi*dphi*pt2;
+      sum_detadphi   += deta*dphi*pt2;
+
+      sum_n_dpt      += np->ET;
+      sum_n_dpt2     += pt2;
+      sum_n_deta     += deta*pt2;
+      sum_n_deta2    += deta*deta*pt2;
+      sum_n_dphi     += dphi*pt2;
+      sum_n_dphi2    += dphi*dphi*pt2;
+      sum_n_detadphi += deta*dphi*pt2;
+
       b_constituent_pt.push_back(np->ET); 
       b_constituent_eta.push_back(np->Eta);
       b_constituent_phi.push_back(np->Phi); 
@@ -746,6 +795,50 @@ void CollectJetConstituentInfo(Jet* jet) {
       b_constituent_isKsFromW.push_back(false);
       b_constituent_isKsFromOther.push_back(false);
     }
+  }
+  float a   = 0, b   = 0, c   = 0;
+  float c_a = 0, c_b = 0, c_c = 0;
+  float n_a = 0, n_b = 0, n_c = 0;
+
+  if (sum_dpt2 > 0.) {
+    b_ptD     = TMath::Sqrt(sum_dpt2)   / sum_dpt;
+    b_c_ptD   = TMath::Sqrt(sum_c_dpt2) / sum_c_dpt;
+    b_n_ptD   = TMath::Sqrt(sum_n_dpt2) / sum_n_dpt;
+
+    // Calculation of major / minor axis of a jet, https://github.com/cms-sw/cmssw/blob/9834f5dc9ff342ddef08b73d6c294cad36575772/RecoJets/JetProducers/src/MVAJetPuId.cc#L437-L448
+    ave_deta  = sum_deta  / sum_dpt2;
+    ave_deta2 = sum_deta2 / sum_dpt2;
+    ave_dphi  = sum_dphi  / sum_dpt2;
+    ave_dphi2 = sum_dphi2 / sum_dpt2;
+    a = ave_deta2 - ave_deta*ave_deta;
+    b = ave_dphi2 - ave_dphi*ave_dphi;
+    c = -(sum_detadphi/sum_dpt2 - ave_deta*ave_dphi);
+    float delta = TMath::Sqrt(fabs( (a-b)*(a-b) + 4*c*c ));
+    b_axis1 = (a+b+delta > 0) ? sqrt(0.5*(a+b+delta)) : 0;
+    b_axis2 = (a+b-delta > 0) ? sqrt(0.5*(a+b-delta)) : 0;
+
+    ave_c_deta  = sum_c_deta  / sum_c_dpt2;
+    ave_c_deta2 = sum_c_deta2 / sum_c_dpt2;
+    ave_c_dphi  = sum_c_dphi  / sum_c_dpt2;
+    ave_c_dphi2 = sum_c_dphi2 / sum_c_dpt2;
+    c_a = ave_c_deta2 - ave_c_deta*ave_c_deta;
+    c_b = ave_c_dphi2 - ave_c_dphi*ave_c_dphi;
+    c_c = -(sum_c_detadphi/sum_c_dpt2 - ave_c_deta*ave_c_dphi);
+    float c_delta = TMath::Sqrt(fabs( (c_a-c_b)*(c_a-c_b) + 4*c_c*c_c ));
+    b_c_axis1 = (c_a+c_b+c_delta > 0) ? sqrt(0.5*(c_a+c_b+c_delta)) : 0;
+    b_c_axis2 = (c_a+c_b-c_delta > 0) ? sqrt(0.5*(c_a+c_b-c_delta)) : 0;
+
+    ave_n_deta  = sum_n_deta  / sum_n_dpt2;
+    ave_n_deta2 = sum_n_deta2 / sum_n_dpt2;
+    ave_n_dphi  = sum_n_dphi  / sum_n_dpt2;
+    ave_n_dphi2 = sum_n_dphi2 / sum_n_dpt2;
+    n_a = ave_n_deta2 - ave_n_deta*ave_n_deta;
+    n_b = ave_n_dphi2 - ave_n_dphi*ave_n_dphi;
+    n_c = -(sum_n_detadphi/sum_n_dpt2 - ave_n_deta*ave_n_dphi);
+    float n_delta = TMath::Sqrt(fabs( (n_a-n_b)*(n_a-n_b) + 4*n_c*n_c ));
+    b_n_axis1 = (n_a+n_b+n_delta > 0) ? sqrt(0.5*(n_a+n_b+n_delta)) : 0;
+    b_n_axis2 = (n_a+n_b-n_delta > 0) ? sqrt(0.5*(n_a+n_b-n_delta)) : 0;
+
   }
 }
 
