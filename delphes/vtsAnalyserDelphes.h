@@ -105,7 +105,7 @@ std::vector<struct RecoHad> m_recoHad;
 std::map<int, struct TruthHad> m_genHadron;
 std::map<int, Jet*> m_selectedJet;
 std::map<int, Jet*> m_selectedBJet;
-bool m_hadPreCut = true;
+bool m_hadPreCut = false;
 std::string m_decayChannel;
 
 TMVA::Reader *m_hadReader;
@@ -134,11 +134,12 @@ int testS = 0; int testB = 0;
 
 // FillJetTree() and FillHadTree()
 float b_bdt_score;
-bool  b_isSelectedJet,    b_hasHighestPt,     b_hasClosestLep,    b_isOverlap;
-float b_pt,               b_eta,              b_phi,              b_mass,         b_ptD,              b_radiusInEta, b_radiusInPhi;
-int   b_pdgId,            b_cMult,            b_nMult,            b_flavorAlgo,   b_flavorPhys,       b_bTag,        b_bTagAlgo,    b_bTagPhys, b_tauTag, b_isFrom;
-float b_cpt1,             b_cpt2,             b_cpt3,             b_cptA;
-float b_npt1,             b_npt2,             b_npt3,             b_nptA;
+bool  b_isSelectedJet, b_hasHighestPt, b_hasClosestLep, b_isOverlap;
+float b_pt,            b_eta,          b_phi,           b_mass;
+float b_ptD,           b_axis1,        b_axis2,         b_c_ptD,      b_c_axis1,    b_c_axis2, b_n_ptD,    b_n_axis1,  b_n_axis2, b_radiusInEta, b_radiusInPhi;
+int   b_pdgId,         b_cMult,        b_nMult,         b_flavorAlgo, b_flavorPhys, b_bTag,    b_bTagAlgo, b_bTagPhys, b_tauTag,  b_isFrom;
+float b_cpt1,          b_cpt2,         b_cpt3,          b_cptA;
+float b_npt1,          b_npt2,         b_npt3,          b_nptA;
 float b_tauWeight;
 
 std::vector<float> b_constituent_pt,       b_constituent_eta,           b_constituent_phi,         b_constituent_D0,        b_constituent_D0Err,         b_constituent_DZ, b_constituent_DZErr, b_constituent_CtgTheta;
@@ -232,11 +233,12 @@ void ResetHadValues() {
 
 void ResetJetValues() {
   b_bdt_score      = -99;
-  b_isSelectedJet  = false; b_hasHighestPt     = false;  b_hasClosestLep = false; b_isOverlap   = false;
-  b_pt             = -99;   b_eta              = -99;    b_phi           = -99;   b_mass        = -99;   b_ptD         = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
-  b_pdgId          = -99;   b_cMult            = -99;    b_nMult         = -99;   b_flavorAlgo  = -99;   b_flavorPhys  = -99; b_bTag        = -99; b_bTagAlgo    = -99; b_bTagPhys = -99; b_tauTag = -99; b_isFrom = -99;
-  b_cpt1           = -99;   b_cpt2             = -99;    b_cpt3          = -99;   b_cptA        = -99;
-  b_npt1           = -99;   b_npt2             = -99;    b_npt3          = -99;   b_nptA        = -99;
+  b_isSelectedJet  = false; b_hasHighestPt = false; b_hasClosestLep = false; b_isOverlap  = false;
+  b_pt             = -99;   b_eta          = -99;   b_phi           = -99;   b_mass       = -99;   
+  b_ptD            = -99;   b_axis1        = -99;   b_axis2         = -99;   b_c_ptD      = -99;   b_c_axis1    = -99; b_c_axis2 = -99; b_n_ptD    = -99; b_n_axis1  = -99; b_n_axis2 = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
+  b_pdgId          = -99;   b_cMult        = -99;   b_nMult         = -99;   b_flavorAlgo = -99;   b_flavorPhys = -99; b_bTag    = -99; b_bTagAlgo = -99; b_bTagPhys = -99; b_tauTag  = -99; b_isFrom      = -99;
+  b_cpt1           = -99;   b_cpt2         = -99;   b_cpt3          = -99;   b_cptA       = -99;
+  b_npt1           = -99;   b_npt2         = -99;   b_npt3          = -99;   b_nptA       = -99;
   b_tauWeight      = -99;
 
   /* Variables for Deep Learning */
@@ -265,6 +267,8 @@ int   cut_nJet, cut_nBJet;
 
 // hadron reconstruction cut
 // Most of them aren't used here (most of them were just copied & pasted from nano_cff) ==> can use tkPTCut_, tkIPSigXYCut_
+
+float tkEtaCut_       = 2.4;
   // Track normalized Chi2 <
 float tkChi2Cut_      = 100.;
   // Number of valid hits on track >=
@@ -304,7 +308,7 @@ void ResetBranch();
 void EventSelection(TH1F*, UInt_t);
 void MatchingGenJet();
 void HadronReconstruction();
-void HadronPreselection(std::vector<RecoHad>);
+void HadronPreselection();//(std::vector<RecoHad>);
 void FindTruthMatchedHadron();
 int  FindMatchedHadron(TLorentzVector, TString, TTree* jettr=0);
 void FillJetTree(TClonesArray* jets, TTree*, TString matchingMethod = "pT");
@@ -349,7 +353,15 @@ void SetJetBranch(TTree* tr) {
   tr->Branch("eta",              &b_eta,              "eta/F");
   tr->Branch("phi",              &b_phi,              "phi/F");
   tr->Branch("mass",             &b_mass,             "mass/F");
-  tr->Branch("ptD",              &b_ptD ,             "ptD/F");
+  tr->Branch("ptD",              &b_ptD,              "ptD/F");
+  tr->Branch("axis1",            &b_axis1,            "axis1/F");
+  tr->Branch("axis2",            &b_axis2,            "axis2/F");
+  tr->Branch("c_ptD",            &b_c_ptD,            "c_ptD/F");
+  tr->Branch("c_axis1",          &b_c_axis1,          "c_axis1/F");
+  tr->Branch("c_axis2",          &b_c_axis2,          "c_axis2/F");
+  tr->Branch("n_ptD",            &b_n_ptD,            "n_ptD/F");
+  tr->Branch("n_axis1",          &b_n_axis1,          "n_axis1/F");
+  tr->Branch("n_axis2",          &b_n_axis2,          "n_axis2/F");
   tr->Branch("radiusInEta",      &b_radiusInEta,      "radiusInEta/F");
   tr->Branch("radiusInPhi",      &b_radiusInPhi,      "radiusInPhi/F");
   tr->Branch("pdgId",            &b_pdgId,            "pdgId/I");
