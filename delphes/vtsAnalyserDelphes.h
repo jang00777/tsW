@@ -134,7 +134,7 @@ int testS = 0; int testB = 0;
 
 // FillJetTree() and FillHadTree()
 float b_bdt_score;
-bool  b_isSelectedJet, b_hasHighestPt, b_hasClosestLep, b_isOverlap;
+bool  b_isSelectedJet, b_hasHighestPt, b_hasHighestPtFromSelected,    b_hasClosestLep, b_isOverlap;
 float b_pt,            b_eta,          b_phi,           b_mass;
 float b_ptD,           b_axis1,        b_axis2,         b_c_ptD,      b_c_axis1,    b_c_axis2, b_n_ptD,    b_n_axis1,  b_n_axis2, b_radiusInEta, b_radiusInPhi;
 int   b_pdgId,         b_cMult,        b_nMult,         b_flavorAlgo, b_flavorPhys, b_bTag,    b_bTagAlgo, b_bTagPhys, b_tauTag,  b_isFrom;
@@ -233,7 +233,7 @@ void ResetHadValues() {
 
 void ResetJetValues() {
   b_bdt_score      = -99;
-  b_isSelectedJet  = false; b_hasHighestPt = false; b_hasClosestLep = false; b_isOverlap  = false;
+  b_isSelectedJet  = false; b_hasHighestPt = false; b_hasHighestPtFromSelected = false; b_hasClosestLep = false; b_isOverlap  = false;
   b_pt             = -99;   b_eta          = -99;   b_phi           = -99;   b_mass       = -99;   
   b_ptD            = -99;   b_axis1        = -99;   b_axis2         = -99;   b_c_ptD      = -99;   b_c_axis1    = -99; b_c_axis2 = -99; b_n_ptD    = -99; b_n_axis1  = -99; b_n_axis2 = -99; b_radiusInEta = -99; b_radiusInPhi = -99;
   b_pdgId          = -99;   b_cMult        = -99;   b_nMult         = -99;   b_flavorAlgo = -99;   b_flavorPhys = -99; b_bTag    = -99; b_bTagAlgo = -99; b_bTagPhys = -99; b_tauTag  = -99; b_isFrom      = -99;
@@ -343,9 +343,16 @@ void DefBranch(TTree* outtr){
 }
 
 void SetJetBranch(TTree* tr) {
+  tr->Branch("recoLep1",         "TLorentzVector",    &b_recoLep1);
+  tr->Branch("recoLep2",         "TLorentzVector",    &b_recoLep2);
+  tr->Branch("recoLep1_pdgId",   &b_recoLep1_pdgId,   "recoLep1_pdgId/I");
+  tr->Branch("recoLep2_pdgId",   &b_recoLep2_pdgId,   "recoLep2_pdgId/I");
+  tr->Branch("MET",              &b_MET,              "MET/F");
+
   tr->Branch("bdt_score",        &b_bdt_score,        "bdt_score/F");
   tr->Branch("isSelectedJet",    &b_isSelectedJet,    "isSelectedJet/O");
   tr->Branch("hasHighestPt",     &b_hasHighestPt,     "hasHighestPt/O");
+  tr->Branch("hasHighestPtFromSelected",     &b_hasHighestPtFromSelected,     "hasHighestPtFromSelected/O");
   tr->Branch("hasClosestLep",    &b_hasClosestLep,    "hasClosestLep/O");
   tr->Branch("isFrom",           &b_isFrom,           "isFrom/I");
   tr->Branch("isOverlap",        &b_isOverlap,        "isOverlap/O");

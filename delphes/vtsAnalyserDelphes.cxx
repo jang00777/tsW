@@ -261,8 +261,14 @@ void MatchingGenJet() {
     auto top = getLast(particles,p);
     genTops.push_back(top);
 
-    auto quark     = (const GenParticle*) particles->At(top->D1); // gen quark from top-quark
-    auto Wboson    = (const GenParticle*) particles->At(top->D2); // gen W-boson from top-quark
+    auto quark  = (const GenParticle*) particles->At(top->D1); // gen quark from top-quark
+    auto Wboson = (const GenParticle*) particles->At(top->D2); // gen W-boson from top-quark
+
+    if (abs(quark->PID) != 3 && abs(quark->PID) != 5) {
+      quark     = (const GenParticle*) particles->At(top->D2);
+      Wboson    = (const GenParticle*) particles->At(top->D1);
+    }
+
     auto lastBoson = getLast(particles, Wboson); // Get a last copy of W-boson in the decay chain
     m_genQuark.push_back(quark);
 
@@ -271,6 +277,14 @@ void MatchingGenJet() {
 
     struct Lepton lep1 = toLepton(dau1_from_W);
     struct Lepton lep2 = toLepton(dau2_from_W);
+
+    //cout << " Gen.  TOP  (PID | STATUS) : ( " << setw(5) <<  top->PID         << " | " << setw(5) << top->Status         << endl;
+    //cout << " Gen.  DAU1 (PID | STATUS) : ( " << setw(5) <<  quark->PID       << " | " << setw(5) << quark->Status       << endl;
+    //cout << " Gen.  DAU2 (PID | STATUS) : ( " << setw(5) <<  Wboson->PID      << " | " << setw(5) << Wboson->Status      << endl;
+    //cout << " Gen.  DDA1 (PID | STATUS) : ( " << setw(5) <<  dau1_from_W->PID << " | " << setw(5) << dau1_from_W->Status << endl;
+    //cout << " Gen.  DDA2 (PID | STATUS) : ( " << setw(5) <<  dau2_from_W->PID << " | " << setw(5) << dau2_from_W->Status << endl;
+    //cout << " Reco. DDA1 (PID | STATUS) : ( " << setw(5) <<  lep1.pdgid       << " | " << setw(5) << dau1_from_W->Status << endl;
+    //cout << " Reco. DDA2 (PID | STATUS) : ( " << setw(5) <<  lep2.pdgid       << " | " << setw(5) << dau2_from_W->Status << endl;
 
     // Collect leptons from W-boson, for dilepton, the size of m_genLepton should be 2 and for semilepton, 1
     if (abs(lep1.pdgid) == 11 || abs(lep1.pdgid) == 13) m_genLepton.push_back(lep1);
@@ -562,7 +576,20 @@ int FindMatchedHadron(TLorentzVector jet_tlv, TString method, TTree* jettr) {
 
 void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
   int nHigh = 0;
+  int nHighSel = 0;
   b_jet_start = jettr->GetEntries();
+
+  std::vector<std::pair<int, float>> highestPtJet;
+  for (auto jet = m_selectedJet.begin(); jet != m_selectedJet.end(); ++jet){ // Loop over jets that passed jet selection
+    auto jidx   = jet->first;
+    auto selJet = jet->second;
+    highestPtJet.push_back({jidx, selJet->PT});
+    //cout << i << " th jet pT ===> : " << jet->PT << endl;
+  }
+  sort(highestPtJet.begin(), highestPtJet.end(), [](std::pair<int, float> a, std::pair<int, float> b) {return a.second > b.second;});
+  //cout << "-----------------------------------------------------------------------------------------------" << endl;
+  //cout << " Highest pT jet is : " << highestPtJet[0].first << " / " << highestPtJet[1].first << endl;
+
   for ( unsigned i = 0; i < jets->GetEntries(); ++i){
     ResetJetValues();
     auto jet     = (Jet*) jets->At(i);
@@ -581,12 +608,28 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
         //if (abs(b_isFrom) == 3 && b_hasHighestPt) cout << "CHK : " << j << " / " << m_matchedJet[j].idx <<endl;
       }
     }
+    if (( i == highestPtJet[0].first || i == highestPtJet[1].first)) b_hasHighestPtFromSelected = true; // this is for checking jets with highest Pt but not matched to gen s/b quarks from top
+
+    //cout << setw(2) << i << " / " << setw(2) << jets->GetEntries() 
+    //     << " >>>> " 
+    //     << " | FLAV : "              << setw(3)  << jet->Flavor 
+    //     << " | isFrom : "            << setw(3)  << b_isFrom 
+    //     << " | idx : "               << setw(2)  << i 
+    //     << " | PT : "                << setw(10) << jet->PT 
+    //     << " | hasHighest : "        << setw(2)  << b_hasHighestPt 
+    //     << " | hasHighestFromSel : " << setw(2)  << b_hasHighestPtFromSelected 
+    //     << " | bTag : "              << setw(2)  << jet->BTag 
+    //     << " | dR(lep1, J) : "       << setw(10) << b_recoLep1.DeltaR(jet_tlv)
+    //     << " | dR(lep2, J) : "       << setw(10) << b_recoLep2.DeltaR(jet_tlv)
+    //     << endl;
+
     if (abs(b_isFrom) == 3 && b_hasHighestPt) sh +=1;
     if (abs(b_isFrom) == 5 && b_hasHighestPt) bh +=1;
     if (abs(b_isFrom) == 3 && b_hasClosestLep) sc +=1;
     if (abs(b_isFrom) == 5 && b_hasClosestLep) bc +=1;
 
     if (b_hasHighestPt == true) nHigh += 1;
+    if (b_hasHighestPtFromSelected == true) nHighSel += 1;
     auto hIdx = FindMatchedHadron(jet_tlv, matchingMethod, jettr); // check if reco. hadron(Ks or lambda0) is inside the i-th jet according to a matching method, if you use "BDT" method, tree arg. should be imported into the function
     SetJetValues(jet);
     if (hIdx != -1) {
@@ -602,7 +645,9 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
     jettr->Fill();
   }
   b_jet_end = jettr->GetEntries();
-  if (nHigh > 2) cout << "no. hasHighestPt in the Event : " << nHigh << endl;
+  if (nHigh > 2)    cout << "no. hasHighestPt in the Event : "             << nHigh << endl;
+  if (nHighSel > 2) cout << "no. hasHighestPtFromSelected in the Event : " << nHigh << endl;
+  highestPtJet.clear();
 }
 
 void FillHadTree(TTree* hadtr) {
