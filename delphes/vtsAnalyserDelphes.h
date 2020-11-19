@@ -94,7 +94,11 @@ TString tmvaWeight_Jet    = "/home/wjang/CMSSW_9_3_9_patch1/src/tsW/delphes/TMVA
 TClonesArray *gen_jets = 0, *particles = 0;
 TClonesArray *electrons = 0, *muons = 0, *jets = 0, *missingET = 0;
 TClonesArray *tracks = 0;
+TClonesArray *events = 0;
 
+//declare genWeight
+float b_genWeight;
+auto h_genWeight = new TH1D("genWeight", "genWeight", 1, 0, 1);
 
 //declare global variables
 std::vector<const GenParticle*> m_genQuark;
@@ -120,10 +124,11 @@ int   b_multimatchedS,  b_unmatchedS;
 int   b_multimatchedB,  b_unmatchedB, b_jetOverlap;
 
 //  EventSelection()
-TLorentzVector b_recoLep1, b_recoLep2;
+TLorentzVector b_recoLep1, b_recoLep2, b_dilepton;
 int   b_nJet,           b_nBJet;
 int   b_recoLep1_pdgId, b_recoLep2_pdgId;
-float b_MET;
+float b_MET,            b_MET_eta,        b_MET_phi;
+float b_recoLep1_MET_dphi, b_recoLep2_MET_dphi, b_dilepton_MET_dphi;
 
 //  MatchingGenJet()
 float b_dilepton_mass;
@@ -141,6 +146,7 @@ int   b_pdgId,         b_cMult,        b_nMult,         b_flavorAlgo, b_flavorPh
 float b_cpt1,          b_cpt2,         b_cpt3,          b_cptA;
 float b_npt1,          b_npt2,         b_npt3,          b_nptA;
 float b_tauWeight;
+float b_recoLep1_dr,   b_recoLep2_dr;  
 
 std::vector<float> b_constituent_pt,       b_constituent_eta,           b_constituent_phi,         b_constituent_D0,        b_constituent_D0Err,         b_constituent_DZ, b_constituent_DZErr, b_constituent_CtgTheta;
 std::vector<int>   b_constituent_charge,   b_constituent_type,          b_constituent_isKsFrom;
@@ -185,10 +191,11 @@ void ResetBranch(){
     //m_recoHad.shrink_to_fit(); 
     //m_genLepton.shrink_to_fit(); 
 
-    b_recoLep1.SetPtEtaPhiM(-99,-99,-99,-99); b_recoLep2.SetPtEtaPhiM(-99,-99,-99,-99);
+    b_recoLep1.SetPtEtaPhiM(-99,-99,-99,-99); b_recoLep2.SetPtEtaPhiM(-99,-99,-99,-99); b_dilepton.SetPtEtaPhiM(-99,-99,-99,-99);
     b_recoLep1_pdgId = -99; b_recoLep2_pdgId = -99;
     b_nJet           = -9;  b_nBJet          = - 9;
-    b_MET            = -99;
+    b_MET            = -99; b_MET_eta        = -99; b_MET_phi = -99;
+    b_recoLep1_MET_dphi = -99; b_recoLep2_MET_dphi = -99; b_dilepton_MET_dphi = -99;
 
     b_had_start      = -1;  b_had_end        = -1;
     b_jet_start      = -1;  b_jet_end        = -1;
@@ -240,6 +247,8 @@ void ResetJetValues() {
   b_cpt1           = -99;   b_cpt2         = -99;   b_cpt3          = -99;   b_cptA       = -99;
   b_npt1           = -99;   b_npt2         = -99;   b_npt3          = -99;   b_nptA       = -99;
   b_tauWeight      = -99;
+
+  b_recoLep1_dr    = -99;   b_recoLep2_dr  = -99;
 
   /* Variables for Deep Learning */
   b_constituent_pt.clear();          b_constituent_eta.clear();       b_constituent_phi.clear(); 
@@ -325,10 +334,12 @@ void SetMVAReader();
 
 //define functions
 void DefBranch(TTree* outtr){
+  BranchF(genWeight);
   BranchI(nJet);           BranchI(nBJet);
-  BranchF(MET);
-  BranchTLV(recoLep1);     BranchTLV(recoLep2);
+  BranchF(MET);            BranchF(MET_eta);        BranchF(MET_phi);
+  BranchTLV(recoLep1);     BranchTLV(recoLep2);     BranchF(dilepton);
   BranchI(recoLep1_pdgId); BranchI(recoLep2_pdgId);
+  BranchF(recoLep1_MET_dphi); BranchF(recoLep2_MET_dphi); BranchF(dilepton_MET_dphi);
   BranchI(had_start);      BranchI(had_end);
   BranchI(jet_start);      BranchI(jet_end);
 
@@ -345,9 +356,21 @@ void DefBranch(TTree* outtr){
 void SetJetBranch(TTree* tr) {
   tr->Branch("recoLep1",         "TLorentzVector",    &b_recoLep1);
   tr->Branch("recoLep2",         "TLorentzVector",    &b_recoLep2);
+  tr->Branch("dilepton",         "TLorentzVector",    &b_dilepton);
   tr->Branch("recoLep1_pdgId",   &b_recoLep1_pdgId,   "recoLep1_pdgId/I");
   tr->Branch("recoLep2_pdgId",   &b_recoLep2_pdgId,   "recoLep2_pdgId/I");
+  tr->Branch("recoLep1_dr",      &b_recoLep1_dr,      "recoLep1_dr/F");
+  tr->Branch("recoLep2_dr",      &b_recoLep2_dr,      "recoLep2_dr/F");
+  tr->Branch("recoLep1_MET_dphi",&b_recoLep1_MET_dphi,"recoLep1_MET_dphi/F");
+  tr->Branch("recoLep2_MET_dphi",&b_recoLep2_MET_dphi,"recoLep2_MET_dphi/F");
+  tr->Branch("dilepton_MET_dphi",&b_dilepton_MET_dphi,"dilepton_MET_dphi/F");
+
+  tr->Branch("dilepton_ch",      &b_dilepton_ch,      "dilepton_ch/I");
+  tr->Branch("dilepton_mass",    &b_dilepton_mass,    "dilepton_mass/F");
+
   tr->Branch("MET",              &b_MET,              "MET/F");
+  tr->Branch("MET_eta",          &b_MET_eta,          "MET_eta/F");
+  tr->Branch("MET_phi",          &b_MET_phi,          "MET_phi/F");
 
   tr->Branch("bdt_score",        &b_bdt_score,        "bdt_score/F");
   tr->Branch("isSelectedJet",    &b_isSelectedJet,    "isSelectedJet/O");

@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
   auto inFile = TFile::Open(inf.c_str(), "READ");
   auto inTree = (TTree*) inFile->Get("Delphes");
   inTree->SetBranchStatus("*", true);
+  inTree->SetBranchAddress("Event",       &events);
   inTree->SetBranchAddress("GenJet",      &gen_jets);
   inTree->SetBranchAddress("Particle",    &particles);
   inTree->SetBranchAddress("Electron",    &electrons);
@@ -74,7 +75,6 @@ int main(int argc, char* argv[])
     HadronReconstruction();
     HadronPreselection();//(m_recoHad);
     FindTruthMatchedHadron();
-    //FillJetTree(jets, jettr, "pT");
     FillJetTree(jets, jettr, "pT");
     FillHadTree(hadtr);
     //cout << " ============================================ " << endl;
@@ -96,6 +96,7 @@ int main(int argc, char* argv[])
 
   inFile->Close();
   cutflow->Write();
+  h_genWeight->Write();
 
   out->Write();
   out->Close();
@@ -132,6 +133,12 @@ std::map<int, Jet*> BJetSelection(std::map<int, Jet*> selJets) {
 }
 
 void EventSelection(TH1F * cutflow, UInt_t decaychannel){
+    for (unsigned i = 0; i < events->GetEntries(); ++i) {
+        auto evt = (HepMCEvent*) events->At(i);
+        b_genWeight = evt->Weight > 0 ? 1 : -1; // Correct manually
+    }
+    if (h_genWeight) h_genWeight->Fill(0.5, b_genWeight);
+
     cutflow->Fill(0);
     // object selection
     std::vector<struct Lepton> recoLep;
@@ -155,7 +162,11 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
     }
     // get MET
     auto met = ((MissingET*) missingET->At(0))->MET;
-    b_MET    = met;
+    auto met_eta = ((MissingET*) missingET->At(0))->Eta; // Just added, don't use
+    auto met_phi = ((MissingET*) missingET->At(0))->Phi;
+    b_MET     = met;
+    b_MET_eta = met_eta;
+    b_MET_phi = met_phi;
 
     // Semi-lepton case
     if (decaychannel == 1) {
@@ -220,7 +231,13 @@ void EventSelection(TH1F * cutflow, UInt_t decaychannel){
       b_recoLep1       = recoLep[0].tlv;   b_recoLep2       = recoLep[1].tlv;
       b_recoLep1_pdgId = recoLep[0].pdgid; b_recoLep2_pdgId = recoLep[1].pdgid;
 
+      b_recoLep1_MET_dphi = TVector2::Phi_mpi_pi(b_recoLep1.Phi() - b_MET_phi);
+      b_recoLep2_MET_dphi = TVector2::Phi_mpi_pi(b_recoLep2.Phi() - b_MET_phi);
+
       auto dilepton = recoLep[0].tlv + recoLep[1].tlv;
+      b_dilepton    = dilepton;
+      b_dilepton_MET_dphi = TVector2::Phi_mpi_pi(b_dilepton.Phi() - b_MET_phi);
+
       auto mulpdg   = recoLep[0].charge * recoLep[1].charge;
       b_dilepton_ch   = abs(recoLep[0].pdgid) + abs(recoLep[1].pdgid); // 22 -> ee , 24 -> emu , 26 -> mumu
       b_dilepton_mass = dilepton.M();
@@ -622,6 +639,9 @@ void FillJetTree(TClonesArray* jets, TTree* jettr, TString matchingMethod) {
     //     << " | dR(lep1, J) : "       << setw(10) << b_recoLep1.DeltaR(jet_tlv)
     //     << " | dR(lep2, J) : "       << setw(10) << b_recoLep2.DeltaR(jet_tlv)
     //     << endl;
+
+    b_recoLep1_dr = b_recoLep1.DeltaR(jet_tlv);
+    b_recoLep2_dr = b_recoLep2.DeltaR(jet_tlv);
 
     if (abs(b_isFrom) == 3 && b_hasHighestPt) sh +=1;
     if (abs(b_isFrom) == 5 && b_hasHighestPt) bh +=1;
